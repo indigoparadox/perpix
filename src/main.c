@@ -7,6 +7,8 @@
 #include <sys/stat.h> /* fstat() */
 #include <unistd.h> /* close() */
 
+char g_file_to_open[RETROFLAT_PATH_MAX];
+
 MERROR_RETVAL perpix_on_resize( uint16_t new_w, uint16_t new_h, void* data ) {
    MERROR_RETVAL retval = MERROR_OK;
    struct PERPIX_DATA* data_p = (struct PERPIX_DATA*)data;
@@ -113,6 +115,13 @@ cleanup:
    }
 }
 
+int perpix_cli_o( const char* arg, struct RETROFLAT_ARGS* args ) {
+   if( 0 != strncmp( MAUG_CLI_SIGIL "o", arg, MAUG_CLI_SIGIL_SZ + 4 ) ) {
+      strncpy( g_file_to_open, arg, RETROFLAT_PATH_MAX );
+   }
+   return RETROFLAT_OK;
+}
+
 int main( int argc, char** argv ) {
    int retval = 0;
    struct RETROFLAT_ARGS args;
@@ -124,10 +133,16 @@ int main( int argc, char** argv ) {
 
    logging_init();
 
+   memset( g_file_to_open, '\0', RETROFLAT_PATH_MAX );
+
    memset( &args, '\0', sizeof( struct RETROFLAT_ARGS ) );
 
    args.title = "perpix";
    args.assets_path = "assets";
+
+   maug_add_arg( MAUG_CLI_SIGIL "o", MAUG_CLI_SIGIL_SZ + 2,
+      "Open the given image file", 0,
+      (maug_cli_cb)perpix_cli_o, NULL, &args );
    
    retval = retroflat_init( argc, argv, &args );
    if( RETROFLAT_OK != retval ) {
@@ -148,7 +163,9 @@ int main( int argc, char** argv ) {
    /* Try to load file. */
    maug_mlock( data->grid_h, grid );
    maug_cleanup_if_null_alloc( struct PERPIX_GRID*, grid );
-   retval = perpix_open_file( "an2.bmp", grid );
+   if( '\0' != g_file_to_open[0] ) {
+      retval = perpix_open_file( g_file_to_open, grid );
+   }
    ui_scale_zoom( retroflat_screen_w(), retroflat_screen_h(), grid );
    maug_munlock( data->grid_h, grid );
    maug_cleanup_if_not_ok();
