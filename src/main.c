@@ -7,19 +7,18 @@
 #include <sys/stat.h> /* fstat() */
 #include <unistd.h> /* close() */
 
-struct PERPIX_DATA {
-   int init;
-   uint8_t flags;
-   MAUG_MHANDLE grid_h;
-};
-
 MERROR_RETVAL perpix_on_resize( uint16_t new_w, uint16_t new_h, void* data ) {
    MERROR_RETVAL retval = MERROR_OK;
    struct PERPIX_DATA* data_p = (struct PERPIX_DATA*)data;
+   struct PERPIX_GRID* grid = NULL;
 
    /* Resize the virtual buffer and redraw the UI. */
 
    retroflat_resize_v();
+
+   maug_mlock( data_p->grid_h, grid )
+   ui_scale_zoom( new_w, new_h, grid );
+   maug_munlock( data_p->grid_h, grid )
 
    data_p->flags |= PERPIX_FLAG_REDRAW_UI;
 
@@ -73,27 +72,20 @@ cleanup:
 }
 
 void perpix_loop( struct PERPIX_DATA* data ) {
-   RETROFLAT_IN_KEY input = 0;
-   struct RETROFLAT_INPUT input_evt;
    struct PERPIX_GRID* grid = NULL;
    MERROR_RETVAL retval = MERROR_OK;
 
+   retroflat_draw_lock( NULL );
+
    /* Input */
 
-   input = retroflat_poll_input( &input_evt );
-
-   switch( input ) {
-   case RETROFLAT_KEY_ESC:
-      retroflat_quit( 0 );
-      break;
-   }
+   retval = ui_handle_input_queue( data );
+   maug_cleanup_if_not_ok();
 
    /* Drawing */
 
    maug_mlock( data->grid_h, grid );
    maug_cleanup_if_null_alloc( struct PERPIX_GRID*, grid );
-
-   retroflat_draw_lock( NULL );
 
    if( PERPIX_FLAG_REDRAW_UI == (data->flags & PERPIX_FLAG_REDRAW_UI) ) {
       retroflat_rect(
@@ -148,18 +140,21 @@ int main( int argc, char** argv ) {
    maug_cleanup_if_null_alloc( struct PERPIX_DATA*, data );
    maug_mzero( data, sizeof( struct PERPIX_DATA ) );
 
+   /* Create an empty new grid. */
    retval = grid_new_h( 16, 16, 16, &(data->grid_h) );
    maug_cleanup_if_not_ok();
    maug_cleanup_if_null_alloc( MAUG_MHANDLE, data->grid_h );
 
+   /* Try to load file. */
    maug_mlock( data->grid_h, grid );
    maug_cleanup_if_null_alloc( struct PERPIX_GRID*, grid );
    retval = perpix_open_file( "an2.bmp", grid );
+   ui_scale_zoom( retroflat_screen_w(), retroflat_screen_h(), grid );
    maug_munlock( data->grid_h, grid );
    maug_cleanup_if_not_ok();
 
+   /* Setup data. */
    retroflat_set_proc_resize( perpix_on_resize, data );
-
    data->flags |= PERPIX_FLAG_REDRAW_UI;
 
    /* === Main Loop === */
