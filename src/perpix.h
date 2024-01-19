@@ -38,6 +38,14 @@ struct PERPIX_GRID {
    uint32_t palette_ncolors;
 };
 
+struct PERPIX_DATA {
+   int init;
+   uint8_t flags;
+   uint8_t fg_idx;
+   uint8_t bg_idx;
+   MAUG_MHANDLE grid_h;
+};
+
 #include "ui.h"
 #include "grid.h"
 #include "plugin.h"

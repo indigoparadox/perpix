@@ -3,6 +3,43 @@
 
 static uint8_t g_ui_zoom = 10;
 
+MERROR_RETVAL ui_handle_input_queue( struct PERPIX_DATA* data ) {
+   struct RETROFLAT_INPUT input_evt;
+   RETROFLAT_IN_KEY input = 0;
+   struct PERPIX_GRID* grid = NULL;
+   MERROR_RETVAL retval = MERROR_OK;
+
+   /* Process input events until none remain. */
+   do {
+      input = retroflat_poll_input( &input_evt );
+
+      switch( input ) {
+      case RETROFLAT_KEY_ESC:
+         retroflat_quit( 0 );
+         break;
+
+      case RETROFLAT_MOUSE_B_LEFT:
+         /* Lock the grid specially to draw this pixel. */
+         maug_mlock( data->grid_h, grid );
+         maug_cleanup_if_null_alloc( struct PERPIX_GRID*, grid );
+
+         if( UI_GRID_X < input_evt.mouse_x ) {
+            ui_click_px( data, grid, input_evt.mouse_x, input_evt.mouse_y );
+         } else if( UI_GRID_Y < input_evt.mouse_y ) {
+            ui_click_palette(
+               data, grid, input_evt.mouse_x, input_evt.mouse_y );
+         }
+         
+         maug_munlock( data->grid_h, grid );
+         break;
+      }
+
+   } while( input );
+
+cleanup:
+   return retval;
+}
+
 void ui_draw_palette( struct PERPIX_GRID* grid ) {
    size_t i = 0;
    uint16_t x_iter = UI_PALETTE_X,
@@ -51,9 +88,61 @@ void ui_draw_grid( struct PERPIX_GRID* grid ) {
             grid_px_at( grid, p_px, x_iter, y_iter ),
             UI_GRID_X + (x_iter * (g_ui_zoom + 1)),
             UI_GRID_Y + (y_iter * (g_ui_zoom + 1)),
-            UI_PALETTE_SQ_SZ, UI_PALETTE_SQ_SZ,
+            g_ui_zoom, g_ui_zoom,
             RETROFLAT_FLAGS_FILL );
 
+      }
+   }
+}
+
+void ui_scale_zoom( uint16_t w, uint16_t h, struct PERPIX_GRID* grid ) {
+   g_ui_zoom = (h - (2 * UI_GRID_Y)) / grid->h;
+}
+
+void ui_click_px(
+   struct PERPIX_DATA* data, struct PERPIX_GRID* grid,
+   uint16_t mouse_x, uint16_t mouse_y
+) {
+   int16_t g_x = 0,
+      g_y = 0;
+   uint8_t* p_px = NULL;
+
+   p_px = grid_px( grid );
+
+   g_x = ui_screen_to_grid_x( mouse_x );
+   g_y = ui_screen_to_grid_y( mouse_y );
+
+   /* TODO: Implement multiple tools with callbacks. */
+
+   if( 0 <= g_x && grid->w > g_x && 0 <= g_y && grid->h > g_y ) { 
+      grid_px_at( grid, p_px, g_x, g_y ) = data->fg_idx;
+
+      retroflat_rect(
+         NULL,
+         grid_px_at( grid, p_px, g_x, g_y ),
+         UI_GRID_X + (g_x * (g_ui_zoom + 1)),
+         UI_GRID_Y + (g_y * (g_ui_zoom + 1)),
+         g_ui_zoom, g_ui_zoom,
+         RETROFLAT_FLAGS_FILL );
+   }
+}
+
+void ui_click_palette(
+   struct PERPIX_DATA* data, struct PERPIX_GRID* grid,
+   uint16_t mouse_x, uint16_t mouse_y
+) {
+   int16_t g_x = 0,
+      g_y = 0;
+
+   g_x = ui_screen_to_palette_x( mouse_x );
+   g_y = ui_screen_to_palette_y( mouse_y );
+
+   /* Translate palette X/Y into color index. */
+   if( 0 <= g_x && 2 > g_x && 0 <= g_y && grid->palette_ncolors / 2 > g_y ) { 
+      data->fg_idx = g_y;
+      if( 0 < g_x ) {
+         /* In right-hand column, so add left-hand column count. */
+         data->fg_idx += (grid->palette_ncolors / 2);
       }
    }
 }
