@@ -3,7 +3,7 @@
 
 #WING := 1
 RETROFLAT_DOS_MEM_LARGE := 1
-C_FILES := src/main.c src/palette.c src/grid.c
+C_FILES := src/main.c src/ui.c src/grid.c
 GLOBAL_DEFINES := -DRETROFLAT_DEFAULT_SCREEN_W=640 -DRETROFLAT_DEFAULT_SCREEN_H=480
 
 include maug/Makefile.inc
