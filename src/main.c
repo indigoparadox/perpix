@@ -6,12 +6,14 @@
 struct PERPIX_DATA {
    int init;
    uint8_t flags;
-   struct PERPIX_GRID grid;
+   MAUG_MHANDLE grid_h;
 };
 
 void perpix_loop( struct PERPIX_DATA* data ) {
    RETROFLAT_IN_KEY input = 0;
    struct RETROFLAT_INPUT input_evt;
+   struct PERPIX_GRID* grid = NULL;
+   MERROR_RETVAL retval = MERROR_OK;
 
    /* Input */
 
@@ -25,6 +27,9 @@ void perpix_loop( struct PERPIX_DATA* data ) {
 
    /* Drawing */
 
+   maug_mlock( data->grid_h, grid );
+   maug_cleanup_if_null_alloc( struct PERPIX_GRID*, grid );
+
    retroflat_draw_lock( NULL );
 
    if( PERPIX_FLAG_REDRAW_UI == (data->flags & PERPIX_FLAG_REDRAW_UI) ) {
@@ -33,12 +38,24 @@ void perpix_loop( struct PERPIX_DATA* data ) {
          retroflat_screen_w(), retroflat_screen_h(),
          RETROFLAT_FLAGS_FILL );
 
-      palette_draw( 10, 20, &(data->grid) );
+      ui_draw_palette( grid );
+
+      ui_draw_grid( grid );
 
       data->flags &= ~PERPIX_FLAG_REDRAW_UI;
    }
 
+cleanup:
+
    retroflat_draw_release( NULL );
+
+   if( NULL != grid ) {
+      maug_munlock( data->grid_h, grid );
+   }
+
+   if( retval ) {
+      retroflat_quit( retval );
+   }
 }
 
 int main( int argc, char** argv ) {
@@ -67,8 +84,9 @@ int main( int argc, char** argv ) {
    maug_cleanup_if_null_alloc( struct PERPIX_DATA*, data );
    maug_mzero( data, sizeof( struct PERPIX_DATA ) );
 
-   retval = grid_new( 16, 16, 16, &(data->grid) );
+   retval = grid_new_h( 16, 16, 16, &(data->grid_h) );
    maug_cleanup_if_not_ok();
+   maug_cleanup_if_null_alloc( MAUG_MHANDLE, data->grid_h );
 
    data->flags |= PERPIX_FLAG_REDRAW_UI;
 
@@ -81,6 +99,9 @@ cleanup:
 #ifndef RETROFLAT_OS_WASM
 
    if( NULL != data ) {
+      if( NULL != data->grid_h ) {
+         maug_mfree( data->grid_h );
+      }
       maug_munlock( data_h, data );
    }
 

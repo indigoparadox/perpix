@@ -29,12 +29,10 @@ struct PERPIX_GRID {
    uint32_t h;
    uint16_t bpp;
    uint32_t data_sz;
-   uint32_t palette_sz;
-   uint32_t palette[PERPIX_GRID_PAL_SZ];
-   uint8_t px[PERPIX_GRID_H_MAX][PERPIX_GRID_W_MAX];
+   uint32_t palette_ncolors;
 };
 
-#include "palette.h"
+#include "ui.h"
 #include "grid.h"
 
 #endif /* PERPIX_H */
