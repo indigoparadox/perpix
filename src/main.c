@@ -2,12 +2,75 @@
 #define MAUG_C
 #define RETROFLT_C
 #include "perpix.h"
+#include <fcntl.h> /* open() */
+#include <sys/mman.h> /* mmap() */
+#include <sys/stat.h> /* fstat() */
+#include <unistd.h> /* close() */
 
 struct PERPIX_DATA {
    int init;
    uint8_t flags;
    MAUG_MHANDLE grid_h;
 };
+
+MERROR_RETVAL perpix_on_resize( uint16_t new_w, uint16_t new_h, void* data ) {
+   MERROR_RETVAL retval = MERROR_OK;
+   struct PERPIX_DATA* data_p = (struct PERPIX_DATA*)data;
+
+   /* Resize the virtual buffer and redraw the UI. */
+
+   retroflat_resize_v();
+
+   data_p->flags |= PERPIX_FLAG_REDRAW_UI;
+
+   return retval;
+}
+
+MERROR_RETVAL perpix_open_file(
+   const char* filename, struct PERPIX_GRID* grid
+) {
+   MERROR_RETVAL retval = MERROR_OK;
+   plugin_mod_t mod_exe = NULL;
+   int in_file = 0;
+   uint8_t* in_file_bytes = NULL;
+   struct stat st;
+
+   assert( NULL != grid );
+
+   in_file = open( filename, O_RDONLY );
+   if( 0 >= in_file ) {
+      error_printf( "could not open file: %s", filename );
+      retval = MERROR_FILE;
+      goto cleanup;
+   }
+
+   fstat( in_file, &st );
+   in_file_bytes = 
+      mmap( (caddr_t)0, st.st_size, PROT_READ, MAP_SHARED,  in_file, 0 );
+
+   assert( NULL != in_file_bytes );
+
+   retval = plugin_load( "./perpix_bmp.so", &mod_exe );
+   maug_cleanup_if_not_ok();
+
+   retval = plugin_call(
+      mod_exe, "bmp_read", grid, in_file_bytes, st.st_size, NULL );
+   if( MERROR_OK != retval ) {
+      error_printf( "plugin returned error: %u", retval );
+   }
+
+cleanup:
+
+   if( NULL != in_file_bytes ) {
+      munmap( in_file_bytes, st.st_size );
+   }
+
+   if( 0 < in_file ) {
+      close( in_file );
+   }
+
+   return retval;
+}
 
 void perpix_loop( struct PERPIX_DATA* data ) {
    RETROFLAT_IN_KEY input = 0;
@@ -63,6 +126,7 @@ int main( int argc, char** argv ) {
    struct RETROFLAT_ARGS args;
    MAUG_MHANDLE data_h = (MAUG_MHANDLE)NULL;
    struct PERPIX_DATA* data = NULL;
+   struct PERPIX_GRID* grid = NULL;
    
    /* === Setup === */
 
@@ -87,6 +151,14 @@ int main( int argc, char** argv ) {
    retval = grid_new_h( 16, 16, 16, &(data->grid_h) );
    maug_cleanup_if_not_ok();
    maug_cleanup_if_null_alloc( MAUG_MHANDLE, data->grid_h );
+
+   maug_mlock( data->grid_h, grid );
+   maug_cleanup_if_null_alloc( struct PERPIX_GRID*, grid );
+   retval = perpix_open_file( "an2.bmp", grid );
+   maug_munlock( data->grid_h, grid );
+   maug_cleanup_if_not_ok();
+
+   retroflat_set_proc_resize( perpix_on_resize, data );
 
    data->flags |= PERPIX_FLAG_REDRAW_UI;
 
