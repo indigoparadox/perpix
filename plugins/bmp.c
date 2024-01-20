@@ -327,6 +327,13 @@ int32_t bmp_write(
 
 #endif
 
+MPLUG_EXPORT MERROR_RETVAL bmp_px_sz( struct PERPIX_PLUG_ENV* plug_env ) {
+   plug_env->layer_sz = (
+      ((((plug_env->grid->bpp * plug_env->grid->w) + 31) / 32) * 4) *
+         plug_env->grid->h);
+   return MERROR_OK;
+}
+
 MPLUG_EXPORT MERROR_RETVAL bmp_read_header(
    struct PERPIX_PLUG_ENV* plug_env
 ) {
@@ -478,8 +485,11 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
    uint8_t* buf = plug_env->buf;
    size_t buf_sz = plug_env->buf_sz;
    size_t bmp_file_sz = 0;
+   struct PERPIX_PLUG_ENV hdr_env;
 
    debug_printf( 3, "bmp plugin started reading..." );
+
+   memcpy( &hdr_env, plug_env, sizeof( struct PERPIX_PLUG_ENV ) );
 
    if( 0 == grid->version || 1 < grid->version ) {
       error_printf( "don't know how to write grid version: " UPRINTF_U32_FMT,
@@ -488,7 +498,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
       goto cleanup;
    }
 
-   plug_env->flags = 0;
+   hdr_env.flags = 0;
 
    /* Read the bitmap file header. */
    if( 0x42 != buf[0] || 0x4d != buf[1] ) {
@@ -508,24 +518,43 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
       goto cleanup;
    }
 
+   debug_printf( 1, "buffer size " SIZE_T_FMT ", as expected...",
+      buf_sz );
+
    bmp_data_offset = perpix_read_lsbf_32( buf, 10 );
    debug_printf( 2, "bitmap data starts at %u bytes", bmp_data_offset );
 
-   plug_env->buf += 14; /* BMP -file- header size. */
-   plug_env->buf_sz -= 14;
+   hdr_env.buf += 14; /* BMP -file- header size. */
+   hdr_env.buf_sz -= 14;
    bmp_data_offset -= 14;
-   retval = bmp_read_header( plug_env );
+   retval = bmp_read_header( &hdr_env );
    maug_cleanup_if_not_ok();
 
-   plug_env->buf += 40; /* BMP -info- header size. */
-   plug_env->buf_sz -= 40;
+   bmp_px_sz( plug_env );
+   if(
+      plug_env->layer_sz + (grid->palette_ncolors * 4) + 40 + 14 != buf_sz
+   ) {
+      error_printf(
+         "invalid buffer size: " SIZE_T_FMT ", expected: " SIZE_T_FMT
+         " (%u rows of %u pixels, each row sized %u bytes for image sized %u"
+         ", plus %u colors of 4 bytes each, plus 54 bytes of header)",
+         buf_sz, plug_env->layer_sz + 40 + 14,
+         grid->h, grid->w, (((grid->bpp * grid->w) + 31) / 32) * 4,
+         grid->h * (((grid->bpp * grid->w) + 31) / 32) * 4,
+         grid->palette_ncolors * 4 );
+      retval = MERROR_FILE;
+      goto cleanup;
+   }
+
+   hdr_env.buf += 40; /* BMP -info- header size. */
+   hdr_env.buf_sz -= 40;
    bmp_data_offset -= 40;
-   retval = bmp_read_palette( plug_env );
+   retval = bmp_read_palette( &hdr_env );
    maug_cleanup_if_not_ok();
 
-   plug_env->buf += bmp_data_offset;
-   plug_env->buf_sz -= bmp_data_offset;
-   retval = bmp_read_px( plug_env );
+   hdr_env.buf += bmp_data_offset;
+   hdr_env.buf_sz -= bmp_data_offset;
+   retval = bmp_read_px( &hdr_env );
    maug_cleanup_if_not_ok();
 
 cleanup:

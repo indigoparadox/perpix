@@ -57,6 +57,7 @@ struct PERPIX_PLUG_ENV {
    struct PERPIX_GRID* grid;
    uint8_t* buf;
    size_t buf_sz;
+   size_t layer_sz;
 };
 
 #include "ui.h"

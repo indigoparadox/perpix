@@ -33,6 +33,8 @@ MERROR_RETVAL perpix_open_file(
    uint8_t* in_file_bytes = NULL;
    size_t in_file_sz = 0;
    struct PERPIX_PLUG_ENV plug_env;
+   char file_ext[4] = "bmp";
+   char plugin_call_buf[RETROFLAT_PATH_MAX + 1];
 
    assert( NULL != grid );
 
@@ -42,7 +44,10 @@ MERROR_RETVAL perpix_open_file(
 
    /* TODO: Select a plugin. */
 
-   retval = mplug_load( "./perpix_ico", &mod_exe );
+   memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
+   maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "./perpix_%s",
+      file_ext );
+   retval = mplug_load( plugin_call_buf, &mod_exe );
    maug_cleanup_if_not_ok();
 
    maug_mlock( in_file_bytes_h, in_file_bytes );
@@ -51,9 +56,13 @@ MERROR_RETVAL perpix_open_file(
    plug_env.grid = grid;
    plug_env.buf = in_file_bytes;
    plug_env.buf_sz = in_file_sz;
-   retval = mplug_call( mod_exe, "ico_read", &plug_env, sizeof( plug_env ) );
+   memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
+   maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "%s_read",
+      file_ext );
+   retval = mplug_call(
+      mod_exe, plugin_call_buf, &plug_env, sizeof( plug_env ) );
    if( MERROR_OK != retval ) {
-      error_printf( "plugin returned error: %u", retval );
+      error_printf( "%s plugin returned error: %u", file_ext, retval );
    }
 
 cleanup:
