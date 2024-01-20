@@ -37,7 +37,7 @@ MERROR_RETVAL perpix_open_file(
    assert( NULL != grid );
 
    debug_printf( 3, "opening file: %s", filename );
-   retval = retrofil_open_read( filename, &in_file_bytes_h, &in_file_sz );
+   retval = retrofil_open_mread( filename, &in_file_bytes_h, &in_file_sz );
    maug_cleanup_if_not_ok();
 
    retval = mplug_load( "./perpix_bmp", &mod_exe );
@@ -61,7 +61,7 @@ cleanup:
    }
 
    if( NULL != in_file_bytes_h ) {
-      retrofil_close_read( in_file_bytes, in_file_sz );
+      retrofil_close_mread( in_file_bytes, in_file_sz );
    }
 
    return retval;
