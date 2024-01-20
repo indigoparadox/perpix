@@ -545,25 +545,37 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
          byte_idx++;
          bit_idx = 0;
          pixel_buffer = 0;
+
+         /* Build a bitwise mask based on the bitmap's BPP. */
+         byte_mask = 0;
+         for( i = 0 ; plug_env->bpp > i ; i++ ) {
+            byte_mask <<= 1;
+            byte_mask |= 0x01;
+         }
       }
 
       /* TODO: Bounds checking! */
       assert( (y * sz_x) + x < (buf_sz * (8 / grid->bpp)) );
 
-      /* Read this pixel into the pixel_buffer, bit by bit. */
-      for( i = 0 ; plug_env->bpp > i ; i++ ) {
-         byte_mask = 0x01 << bit_idx;
-         debug_printf( 3, "bm: 0x%02x", byte_mask );
-         pixel_buffer |= byte_buffer & byte_mask;
-         bit_idx++;
-      }
+      debug_printf( 3, "bm: 0x%02x", byte_mask );
+
+      /* Use the byte mask to place the bits for this pixel in the
+       * pixel buffer.
+       */
+      pixel_buffer |= byte_buffer & byte_mask;
       
       /* Shift the pixel buffer so the index lines up at the first bit. */
-      pixel_buffer >>= (bit_idx - plug_env->bpp);
-      debug_printf( 3, "new bit_idx: %u", (bit_idx - plug_env->bpp) );
+      pixel_buffer >>= bit_idx;
+      debug_printf( 3, "new bit_idx: %u", bit_idx );
 
       /* Place the pixel buffer at the X/Y in the grid. */
       p_grid_px[(y * grid->w) + x] = pixel_buffer;
+
+      /* Increment the bits position byte mask by the bpp so it's pointing
+       * to the next pixel in the bitmap for the next go around.
+       */
+      byte_mask <<= plug_env->bpp;
+      bit_idx += plug_env->bpp;
 
       /* Move to the next pixel. */
       x++;
