@@ -405,17 +405,75 @@ cleanup:
    return retval;
 }
 
-MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
+MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
    MERROR_RETVAL retval = MERROR_OK;
    uint32_t x = 0,
       y = 0,
       i = 0,
       byte_idx = 0,
-      bit_idx = 0,
-      bmp_data_offset = 0,
-      bmp_data_size = 0;
-   char byte_buffer = 0;
-   uint8_t* p_px = NULL;
+      bit_idx = 0;
+   uint8_t* buf = plug_env->buf;
+   size_t buf_sz = plug_env->buf_sz;
+   struct PERPIX_GRID* grid = plug_env->grid;
+   uint8_t* p_grid_px = NULL;
+   uint8_t byte_buffer = 0;
+
+   debug_printf( 3, "bmp plugin started pixels..." );
+
+   /* Figure out where we're writing data to. */
+   p_grid_px = grid_px( grid );
+
+   /* TODO: Make sure grid is big enough! */
+
+   /*
+   grid->palette_offset = sizeof( struct PERPIX_GRID );
+   grid->px_offset = sizeof( struct PERPIX_GRID ) + pal_sz;
+   */
+
+   /* Read the bitmap data. */
+
+   /* Grid starts from top, bitmap starts from bottom. */
+   /* TODO: Use upside-down flag! */
+   y = grid->h - 1;
+   while( buf_sz > byte_idx ) {
+      debug_printf( 0, "bmp: byte_idx %u, bit_idx %u, row %d, col %d (%u)",
+         byte_idx, bit_idx, y, x, (y * grid->w) + x );
+      if( 0 == bit_idx % 8 ) {
+         byte_buffer = buf[byte_idx];
+         byte_idx++;
+         bit_idx = 0;
+      }
+
+      /* TODO: Bounds checking! */
+      assert( (y * sz_x) + x < (buf_sz * (8 / grid->bpp)) );
+
+      /* Read this pixel into the grid. */
+      for( i = 0 ; grid->bpp > i ; i++ ) {
+         p_grid_px[(y * grid->w) + x] |= byte_buffer & (0x01 << bit_idx);
+         bit_idx++;
+      }
+      p_grid_px[(y * grid->w) + x] >>= (bit_idx - grid->bpp);
+
+      /* Move to the next pixel. */
+      x++;
+      if( x >= grid->w ) {
+         /* Move to the next row. */
+         y--;
+         x = 0;
+         while( byte_idx % 4 != 0 ) {
+            byte_idx++;
+         }
+         /* Get past the padding. */
+      }
+   }
+
+cleanup:
+   return retval;
+}
+
+MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
+   MERROR_RETVAL retval = MERROR_OK;
+   uint32_t bmp_data_offset = 0;
    struct PERPIX_GRID* grid = plug_env->grid;
    uint8_t* buf = plug_env->buf;
    size_t buf_sz = plug_env->buf_sz;
@@ -455,62 +513,20 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
 
    plug_env->buf += 14; /* BMP -file- header size. */
    plug_env->buf_sz -= 14;
+   bmp_data_offset -= 14;
    retval = bmp_read_header( plug_env );
    maug_cleanup_if_not_ok();
 
    plug_env->buf += 40; /* BMP -info- header size. */
    plug_env->buf_sz -= 40;
-   retval = bmp_read_header( plug_env );
+   bmp_data_offset -= 40;
    retval = bmp_read_palette( plug_env );
    maug_cleanup_if_not_ok();
 
-   /* Figure out where we're writing data to. */
-   p_px = grid_px( grid );
-
-   /* TODO: Make sure grid is big enough! */
-
-   /*
-   grid->palette_offset = sizeof( struct PERPIX_GRID );
-   grid->px_offset = sizeof( struct PERPIX_GRID ) + pal_sz;
-   */
-
-   /* Read the bitmap data. */
-   bmp_data_size = buf_sz - bmp_data_offset;
-   debug_printf( 2, "bitmap data is %u bytes", bmp_data_size );
-
-   /* Grid starts from top, bitmap starts from bottom. */
-   /* TODO: Use upside-down flag! */
-   y = grid->h - 1;
-   while( bmp_data_size > byte_idx ) {
-      debug_printf( 0, "bmp: byte_idx %u, bit_idx %u, row %d, col %d (%u)",
-         byte_idx, bit_idx, y, x, (y * grid->w) + x );
-      if( 0 == bit_idx % 8 ) {
-         byte_buffer = buf[bmp_data_offset + byte_idx];
-         byte_idx++;
-         bit_idx = 0;
-      }
-
-      assert( (y * sz_x) + x < (bmp_data_size * (8 / grid->bpp)) );
-
-      /* Read this pixel into the grid. */
-      for( i = 0 ; grid->bpp > i ; i++ ) {
-         p_px[(y * grid->w) + x] |= byte_buffer & (0x01 << bit_idx);
-         bit_idx++;
-      }
-      p_px[(y * grid->w) + x] >>= (bit_idx - grid->bpp);
-
-      /* Move to the next pixel. */
-      x++;
-      if( x >= grid->w ) {
-         /* Move to the next row. */
-         y--;
-         x = 0;
-         while( byte_idx % 4 != 0 ) {
-            byte_idx++;
-         }
-         /* Get past the padding. */
-      }
-   }
+   plug_env->buf += bmp_data_offset;
+   plug_env->buf_sz -= bmp_data_offset;
+   retval = bmp_read_px( plug_env );
+   maug_cleanup_if_not_ok();
 
 cleanup:
 

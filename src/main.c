@@ -40,7 +40,9 @@ MERROR_RETVAL perpix_open_file(
    retval = retrofil_open_mread( filename, &in_file_bytes_h, &in_file_sz );
    maug_cleanup_if_not_ok();
 
-   retval = mplug_load( "./perpix_bmp", &mod_exe );
+   /* TODO: Select a plugin. */
+
+   retval = mplug_load( "./perpix_ico", &mod_exe );
    maug_cleanup_if_not_ok();
 
    maug_mlock( in_file_bytes_h, in_file_bytes );
@@ -49,7 +51,7 @@ MERROR_RETVAL perpix_open_file(
    plug_env.grid = grid;
    plug_env.buf = in_file_bytes;
    plug_env.buf_sz = in_file_sz;
-   retval = mplug_call( mod_exe, "bmp_read", &plug_env, sizeof( plug_env ) );
+   retval = mplug_call( mod_exe, "ico_read", &plug_env, sizeof( plug_env ) );
    if( MERROR_OK != retval ) {
       error_printf( "plugin returned error: %u", retval );
    }
@@ -62,6 +64,10 @@ cleanup:
 
    if( NULL != in_file_bytes_h ) {
       retrofil_close_mread( in_file_bytes, in_file_sz );
+   }
+
+   if( NULL != mod_exe ) {
+      mplug_free( mod_exe );
    }
 
    return retval;
