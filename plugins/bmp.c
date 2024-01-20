@@ -1,7 +1,9 @@
 
 #include <perpix.h>
 
-#include "bmp.h"
+#define BMP_OPTS_FLAG_UPSIDE_DOWN 0x01
+
+#define BMP_COMPRESSION_NONE (0)
 
 #if 0
 int32_t bmp_verify_opts( struct CONVERT_OPTIONS* o ) {
@@ -323,29 +325,11 @@ int32_t bmp_write(
    return bmp_file_byte_idx;
 }
 
-struct CONVERT_GRID* bmp_read_file(
-   const char* path, struct CONVERT_OPTIONS* o
-) {
-   uint8_t* bmp_buffer = NULL;
-   MEMORY_HANDLE buffer_handle = NULL;
-   uint32_t bmp_buffer_sz = 0;
-   struct CONVERT_GRID* grid_out = NULL;
-
-   bmp_buffer_sz = dio_read_file( path, &buffer_handle );
-
-   bmp_buffer = memory_lock( buffer_handle );
-
-   grid_out = bmp_read( bmp_buffer, bmp_buffer_sz, o );
-
-   bmp_buffer = memory_unlock( buffer_handle );
-
-   memory_free( buffer_handle );
-
-   return grid_out;
-}
 #endif
 
-MERROR_RETVAL bmp_read_header( struct PERPIX_PLUG_ENV* plug_env ) {
+MPLUG_EXPORT MERROR_RETVAL bmp_read_header(
+   struct PERPIX_PLUG_ENV* plug_env
+) {
    MERROR_RETVAL retval = MERROR_OK;
    int bmp_compression = 0,
       hdr_sz = 0;
@@ -353,15 +337,15 @@ MERROR_RETVAL bmp_read_header( struct PERPIX_PLUG_ENV* plug_env ) {
    uint8_t* buf = plug_env->buf;
 
    /* Read the bitmap image header. */
-   hdr_sz = perpix_lsbf_32( buf, 0 );
+   hdr_sz = perpix_read_lsbf_32( buf, 0 );
    if( 40 != hdr_sz ) { /* Windows BMP. */
       error_printf( "invalid header size: %u", hdr_sz );
       retval = MERROR_FILE;
       goto cleanup;
    }
    debug_printf( 2, "bitmap header is %u bytes", hdr_sz );
-   grid->w = bmp_int( int32_t, buf, 4 );
-   grid->h = bmp_int( int32_t, buf, 8 );
+   grid->w = perpix_read_lsbf_32( buf, 4 );
+   grid->h = perpix_read_lsbf_32( buf, 8 );
    if( 0 > grid->h ) {
       /* Note that the bitmap is upside down! */
       debug_printf( 2, "bitmap is upside down: " UPRINTF_S32_FMT,
@@ -370,21 +354,21 @@ MERROR_RETVAL bmp_read_header( struct PERPIX_PLUG_ENV* plug_env ) {
       grid->h *= -1;
    }
 
-   grid->bpp = bmp_int( uint16_t, buf, 14 );
+   grid->bpp = perpix_read_lsbf_16( buf, 14 );
    if( 8 < grid->bpp ) {
       error_printf( "invalid bitmap bpp: %u", grid->bpp );
       retval = MERROR_FILE;
       goto cleanup;
    }
 
-   bmp_compression = bmp_int( uint16_t, buf, 16 );
+   bmp_compression = perpix_read_lsbf_16( buf, 16 );
    if( BMP_COMPRESSION_NONE != bmp_compression ) {
       error_printf( "invalid bitmap compression: %u", bmp_compression );
       retval = MERROR_FILE;
       goto cleanup;
    }
 
-   grid->palette_ncolors = bmp_int( uint32_t, buf, 32 );
+   grid->palette_ncolors = perpix_read_lsbf_16( buf, 32 );
 
    debug_printf( 2, "bitmap is %d x %d, %u bpp (palette has %u colors)",
       grid->w, grid->h, grid->bpp, grid->palette_ncolors );
@@ -394,7 +378,9 @@ cleanup:
    return retval;
 }
 
-MERROR_RETVAL bmp_read_palette( struct PERPIX_PLUG_ENV* plug_env ) {
+MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
+   struct PERPIX_PLUG_ENV* plug_env
+) {
    MERROR_RETVAL retval = MERROR_OK;
    size_t i = 0;
    uint32_t* p_palette = NULL;
@@ -410,7 +396,7 @@ MERROR_RETVAL bmp_read_palette( struct PERPIX_PLUG_ENV* plug_env ) {
          retval = MERROR_OVERFLOW;
          goto cleanup;
       }
-      p_palette[i] = perpix_lsbf_32( buf, i * 4 );
+      p_palette[i] = perpix_read_lsbf_32( buf, i * 4 );
       debug_printf( 1, "set palette entry " SIZE_T_FMT " to " UPRINTF_X32_FMT,
          i, p_palette[i] );
    }
@@ -433,6 +419,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
    struct PERPIX_GRID* grid = plug_env->grid;
    uint8_t* buf = plug_env->buf;
    size_t buf_sz = plug_env->buf_sz;
+   size_t bmp_file_sz = 0;
 
    debug_printf( 3, "bmp plugin started reading..." );
 
@@ -445,24 +432,25 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
 
    plug_env->flags = 0;
 
-#if 0
    /* Read the bitmap file header. */
-   if( 0x42 != buf[0] || 0x4d == buf[1] ) {
-      error_printf( "invalid magic number: 0x%02x 0x%02x", buf[0], buf[1] );
-      retval = MERROR_FILE;
-      goto cleanup;
-   }
-#endif
-
-   if( bmp_int( uint32_t, buf, 2 ) != buf_sz ) {
+   if( 0x42 != buf[0] || 0x4d != buf[1] ) {
       error_printf(
-         "bitmap size field " UPRINTF_U32_FMT " does not match buffer size: "
-         SIZE_T_FMT, bmp_int( uint32_t, buf, 2 ), buf_sz );
+         "invalid magic number: 0x%02x 0x%02x (looking for 0x%02x 0x%02x)",
+         buf[0], buf[1], 0x42, 0x4d );
       retval = MERROR_FILE;
       goto cleanup;
    }
 
-   bmp_data_offset = bmp_int( uint32_t, buf, 10 );
+   bmp_file_sz = perpix_read_lsbf_32( buf, 2 );
+   if( bmp_file_sz != buf_sz ) {
+      error_printf(
+         "bitmap size field " SIZE_T_FMT " does not match buffer size: "
+         SIZE_T_FMT, bmp_file_sz, buf_sz );
+      retval = MERROR_FILE;
+      goto cleanup;
+   }
+
+   bmp_data_offset = perpix_read_lsbf_32( buf, 10 );
    debug_printf( 2, "bitmap data starts at %u bytes", bmp_data_offset );
 
    plug_env->buf += 14; /* BMP -file- header size. */
