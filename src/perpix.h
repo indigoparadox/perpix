@@ -78,7 +78,7 @@ struct PERPIX_PLUG_ENV {
    uint8_t flags;
    struct PERPIX_GRID_PACK* grid_pack;
    struct PERPIX_GRID* test_grid;
-   uint8_t* buf;
+   const uint8_t* buf;
    size_t buf_sz;
    uint16_t bpp;
    uint32_t layer_idx;

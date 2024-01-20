@@ -368,7 +368,6 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    int bmp_compression = 0,
       hdr_sz = 0;
    struct PERPIX_GRID* grid = NULL;
-   uint8_t* buf = plug_env->buf;
    uint32_t bmp_w = 0,
       bmp_h = 0;
    uint16_t bmp_bpp = 0;
@@ -392,7 +391,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    }
 
    /* Read the bitmap image header. */
-   hdr_sz = perpix_read_lsbf_32( buf, 0 );
+   hdr_sz = perpix_read_lsbf_32( plug_env->buf, 0 );
    if( 40 != hdr_sz ) { /* Windows BMP. */
       error_printf( "invalid header size: %u", hdr_sz );
       retval = MERROR_FILE;
@@ -401,8 +400,8 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    debug_printf( 2, "bitmap header is %u bytes", hdr_sz );
 
    /* Read bitmap image dimensions. */
-   bmp_w = perpix_read_lsbf_32( buf, 4 );
-   bmp_h = perpix_read_lsbf_32( buf, 8 );
+   bmp_w = perpix_read_lsbf_32( plug_env->buf, 4 );
+   bmp_h = perpix_read_lsbf_32( plug_env->buf, 8 );
    if( 0 > grid->h ) {
       /* Note that the bitmap is upside down! */
       debug_printf( 2, "bitmap is upside down: " UPRINTF_S32_FMT, bmp_h );
@@ -425,7 +424,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    }
 
    /* Check that we're a palettized image. */
-   plug_env->bpp = perpix_read_lsbf_16( buf, 14 );
+   plug_env->bpp = perpix_read_lsbf_16( plug_env->buf, 14 );
    if( 8 < plug_env->bpp ) {
       error_printf( "invalid bitmap bpp: %u", plug_env->bpp );
       retval = MERROR_FILE;
@@ -433,14 +432,14 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    }
 
    /* Make sure there's no weird compression. */
-   bmp_compression = perpix_read_lsbf_16( buf, 16 );
+   bmp_compression = perpix_read_lsbf_16( plug_env->buf, 16 );
    if( BMP_COMPRESSION_NONE != bmp_compression ) {
       error_printf( "invalid bitmap compression: %u", bmp_compression );
       retval = MERROR_FILE;
       goto cleanup;
    }
 
-   bmp_ncolors = perpix_read_lsbf_16( buf, 32 );
+   bmp_ncolors = perpix_read_lsbf_16( plug_env->buf, 32 );
    if( NULL != plug_env->test_grid ) {
       /* We're getting dimensions, so pass them back using the grid. */
       grid->palette_ncolors = bmp_ncolors;
@@ -470,8 +469,6 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
    uint32_t* p_palette = NULL;
    struct PERPIX_GRID* grid = 
       &(plug_env->grid_pack->layers[plug_env->layer_idx]);
-   uint8_t* buf = plug_env->buf;
-   size_t buf_sz = plug_env->buf_sz;
 
    if( plug_env->layer_idx >= plug_env->grid_pack->count ) {
       error_printf( "invalid grid pack layer selected: " UPRINTF_U32_FMT,
@@ -486,12 +483,12 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
    p_palette = grid_palette( grid );
 
    for( i = 0 ; grid->palette_ncolors > i ; i++ ) {
-      if( i * 4 > buf_sz ) {
+      if( i * 4 > plug_env->buf_sz ) {
          error_printf( "palette overflow!" );
          retval = MERROR_OVERFLOW;
          goto cleanup;
       }
-      p_palette[i] = perpix_read_lsbf_32( buf, i * 4 );
+      p_palette[i] = perpix_read_lsbf_32( plug_env->buf, i * 4 );
       debug_printf( 1, "set palette entry " SIZE_T_FMT " to " UPRINTF_X32_FMT,
          i, p_palette[i] );
    }
@@ -507,12 +504,12 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
       i = 0,
       byte_idx = 0,
       bit_idx = 0;
-   uint8_t* buf = plug_env->buf;
-   size_t buf_sz = plug_env->buf_sz;
    struct PERPIX_GRID* grid = 
       &(plug_env->grid_pack->layers[plug_env->layer_idx]);
    uint8_t* p_grid_px = NULL;
-   uint8_t byte_buffer = 0;
+   uint8_t byte_buffer = 0,
+      byte_mask = 0,
+      pixel_buffer = 0;
 
    if( plug_env->layer_idx >= plug_env->grid_pack->count ) {
       error_printf( "invalid grid pack layer selected: " UPRINTF_U32_FMT,
@@ -539,23 +536,34 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
    /* TODO: Use upside-down flag! */
    y = grid->h - 1;
    while( grid->h > y ) {
-      debug_printf( 1, "bmp: byte_idx %u, bit_idx %u, row %d, col %d (%u)",
-         byte_idx, bit_idx, y, x, (y * grid->w) + x );
+      debug_printf( 1, "bmp: byte_idx %u, bit %u (%u), row %d, col %d (%u)",
+         byte_idx, bit_idx, plug_env->bpp, y, x, (y * grid->w) + x );
+
       if( 0 == bit_idx % 8 ) {
-         byte_buffer = buf[byte_idx];
+         /* Move on to a new byte. */
+         byte_buffer = plug_env->buf[byte_idx];
          byte_idx++;
          bit_idx = 0;
+         pixel_buffer = 0;
       }
 
       /* TODO: Bounds checking! */
       assert( (y * sz_x) + x < (buf_sz * (8 / grid->bpp)) );
 
-      /* Read this pixel into the grid. */
+      /* Read this pixel into the pixel_buffer, bit by bit. */
       for( i = 0 ; plug_env->bpp > i ; i++ ) {
-         p_grid_px[(y * grid->w) + x] |= byte_buffer & (0x01 << bit_idx);
+         byte_mask = 0x01 << bit_idx;
+         debug_printf( 3, "bm: 0x%02x", byte_mask );
+         pixel_buffer |= byte_buffer & byte_mask;
          bit_idx++;
       }
-      p_grid_px[(y * grid->w) + x] >>= (bit_idx - plug_env->bpp);
+      
+      /* Shift the pixel buffer so the index lines up at the first bit. */
+      pixel_buffer >>= (bit_idx - plug_env->bpp);
+      debug_printf( 3, "new bit_idx: %u", (bit_idx - plug_env->bpp) );
+
+      /* Place the pixel buffer at the X/Y in the grid. */
+      p_grid_px[(y * grid->w) + x] = pixel_buffer;
 
       /* Move to the next pixel. */
       x++;
