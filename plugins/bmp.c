@@ -350,12 +350,17 @@ MERROR_RETVAL bmp_read_header(
    struct BMP_OPTS* opts
 ) {
    MERROR_RETVAL retval = MERROR_OK;
-   int bmp_compression = 0;
+   int bmp_compression = 0,
+      hdr_sz = 0;
 
    /* Read the bitmap image header. */
-   debug_printf( 2, "bitmap header is %u bytes",
-      bmp_int( uint32_t, buf, 14 ) );
-   assert( 40 == bmp_int( uint32_t, buf, 0 ) ); /* Windows BMP. */
+   hdr_sz = perpix_lsbf_32( buf, 0 );
+   if( 40 != hdr_sz ) { /* Windows BMP. */
+      error_printf( "invalid header size: %u", hdr_sz );
+      retval = MERROR_FILE;
+      goto cleanup;
+   }
+   debug_printf( 2, "bitmap header is %u bytes", hdr_sz );
    grid->w = bmp_int( int32_t, buf, 4 );
    grid->h = bmp_int( int32_t, buf, 8 );
    if( 0 > grid->h ) {
@@ -415,6 +420,9 @@ cleanup:
    return retval;
 }
 
+#ifdef RETROFLAT_OS_WIN
+extern __declspec( dllexport )
+#endif /* RETROFLAT_OS_WIN */
 MERROR_RETVAL bmp_read(
    struct PERPIX_GRID* grid, const uint8_t* buf, size_t buf_sz,
    struct BMP_OPTS* opts_in_ignore
@@ -461,16 +469,13 @@ MERROR_RETVAL bmp_read(
    bmp_data_offset = bmp_int( uint32_t, buf, 10 );
    debug_printf( 2, "bitmap data starts at %u bytes", bmp_data_offset );
 
-   retval = bmp_read_header(
-      grid, &(buf[sizeof( struct BMP_FILE_HEADER )]),
-      buf_sz - sizeof( struct BMP_FILE_HEADER ), &opts );
+   retval = bmp_read_header( grid, &(buf[14 /* BMP -File- Header Sz */]),
+      buf_sz - 14, &opts );
    maug_cleanup_if_not_ok();
 
    retval = bmp_read_palette(
-      grid, &(buf[sizeof( struct BMP_FILE_HEADER ) +
-         sizeof( struct BMP_DATA_HEADER )]),
-      buf_sz - sizeof( struct BMP_FILE_HEADER ) -
-         sizeof( struct BMP_DATA_HEADER ), &opts );
+      grid, &(buf[14 + 40 /* BMP -Info- Header Sz */]),
+      buf_sz - (14 + 40), &opts );
    maug_cleanup_if_not_ok();
 
    /* Figure out where we're writing data to. */

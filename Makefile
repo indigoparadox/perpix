@@ -6,6 +6,7 @@ RETROFLAT_DOS_MEM_LARGE := 1
 C_FILES := src/main.c src/ui.c src/grid.c src/plugin.c
 GLOBAL_DEFINES := -DRETROFLAT_DEFAULT_SCREEN_W=640 -DRETROFLAT_DEFAULT_SCREEN_H=480
 LDFLAGS_GCC_UNIX := -ldl
+PLUGIN_DEFINES := -DDEBUG_LOG -DDEBUG_THRESHOLD=1 -DPERPIX_PLUGIN -DMAUG_NO_RETRO
 
 include maug/Makefile.inc
 
@@ -47,10 +48,17 @@ $(eval $(call TGTWIN386,perpix))
 # Plugins
 
 perpix_bmp.so: plugins/bmp.c
-	gcc -Isrc -Imaug/src -DMAUG_OS_UNIX -DDEBUG_LOG -DDEBUG_THRESHOLD=1 -DPERPIX_PLUGIN -DMAUG_NO_RETRO -fpic -shared -o $@ $<
+	gcc -Isrc -Imaug/src -DRETROFLAT_OS_UNIX $(PLUGIN_DEFINES) -fpic -shared -o $@ $<
+
+perpix_bmp.o: plugins/bmp.c
+	wcc386 -Isrc -Imaug/src -DMAUG_OS_WIN \
+		-I$(WATCOM)/h/nt -bd $< -fo=$@ -DRETROFLAT_OS_WIN $(PLUGIN_DEFINES) -mf -5r -fp5
+
+perpix_bmp.dll: perpix_bmp.o
+	wlink system nt_dll name perpix_bmp file perpix_bmp
 
 # Clean
 
 clean:
-	rm -rf $(CLEAN_TARGETS) *.so
+	rm -rf $(CLEAN_TARGETS) *.so *.dll *.o
 

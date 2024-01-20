@@ -5,6 +5,7 @@
 #include <maug.h>
 #ifndef PERPIX_PLUGIN
 #  include <retroflt.h>
+#  include <retrofil.h>
 #endif /* !PERPIX_PLUGIN F*/
 
 #define PERPIX_FLAG_REDRAW_UI 0x01
