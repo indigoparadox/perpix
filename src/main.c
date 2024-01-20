@@ -5,6 +5,7 @@
 #include "perpix.h"
 
 char g_file_to_open[RETROFLAT_PATH_MAX];
+MAUG_CONST char gc_plug_exts[][4] = {"bmp", "ico"};
 
 MERROR_RETVAL perpix_on_resize( uint16_t new_w, uint16_t new_h, void* data ) {
    MERROR_RETVAL retval = MERROR_OK;
@@ -26,37 +27,22 @@ cleanup:
    return retval;
 }
 
-MERROR_RETVAL perpix_open_file(
-   const char* filename, MAUG_MHANDLE* p_grid_pack_h
+MERROR_RETVAL perpix_read_file_bytes(
+   const char* plug_ext, uint8_t* in_file_bytes, size_t in_file_sz,
+   MAUG_MHANDLE* p_grid_pack_h
 ) {
    MERROR_RETVAL retval = MERROR_OK;
    mplug_mod_t mod_exe = NULL;
-   MAUG_MHANDLE in_file_bytes_h = NULL;
-   uint8_t* in_file_bytes = NULL;
-   size_t in_file_sz = 0;
    struct PERPIX_PLUG_ENV plug_env;
-   char file_ext[4] = "ico";
    char plugin_call_buf[RETROFLAT_PATH_MAX + 1];
    struct PERPIX_GRID test_grid;
    struct PERPIX_GRID_PACK* grid_pack = NULL;
 
-   /* TODO: Create if NULL. */
-   assert( NULL != *p_grid_pack_h );
-
-   debug_printf( 3, "opening file: %s", filename );
-   retval = retrofil_open_mread( filename, &in_file_bytes_h, &in_file_sz );
-   maug_cleanup_if_not_ok();
-
-   /* TODO: Select a plugin. */
-
    memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
    maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "./perpix_%s",
-      file_ext );
+      plug_ext );
    retval = mplug_load( plugin_call_buf, &mod_exe );
    maug_cleanup_if_not_ok();
-
-   maug_mlock( in_file_bytes_h, in_file_bytes );
-   maug_cleanup_if_null_alloc( uint8_t*, in_file_bytes );
 
    plug_env.layer_idx = 0;
    do {
@@ -69,11 +55,12 @@ MERROR_RETVAL perpix_open_file(
       /* Call the plugin to fill out the header. */
       memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
       maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "%s_read",
-         file_ext );
+         plug_ext );
       retval = mplug_call(
          mod_exe, plugin_call_buf, &plug_env, sizeof( plug_env ) );
       if( MERROR_OK != retval ) {
-         error_printf( "%s plugin returned error: %u", file_ext, retval );
+         error_printf( "%s plugin returned error: %u", plug_ext, retval );
+         goto cleanup;
       }
       debug_printf( 2,
          "plugin returned parameters for: %u x %u grid with %u colors",
@@ -95,11 +82,11 @@ MERROR_RETVAL perpix_open_file(
       /* TODO: Read palette and pixels. */
       memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
       maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "%s_read",
-         file_ext );
+         plug_ext );
       retval = mplug_call(
          mod_exe, plugin_call_buf, &plug_env, sizeof( plug_env ) );
       if( MERROR_OK != retval ) {
-         error_printf( "%s plugin returned error: %u", file_ext, retval );
+         error_printf( "%s plugin returned error: %u", plug_ext, retval );
          goto cleanup;
       }
 
@@ -114,16 +101,48 @@ MERROR_RETVAL perpix_open_file(
 
 cleanup:
 
+   if( NULL != mod_exe ) {
+      mplug_free( mod_exe );
+   }
+
+   return retval;
+}
+
+MERROR_RETVAL perpix_open_file(
+   const char* filename, MAUG_MHANDLE* p_grid_pack_h
+) {
+   MERROR_RETVAL retval = MERROR_OK;
+   MAUG_MHANDLE in_file_bytes_h = NULL;
+   uint8_t* in_file_bytes = NULL;
+   size_t in_file_sz = 0;
+   size_t i_plug = 0;
+
+      /* TODO: Create if NULL. */
+   assert( NULL != *p_grid_pack_h );
+
+   debug_printf( 3, "opening file: %s", filename );
+   retval = retrofil_open_mread( filename, &in_file_bytes_h, &in_file_sz );
+   maug_cleanup_if_not_ok();
+
+   maug_mlock( in_file_bytes_h, in_file_bytes );
+   maug_cleanup_if_null_alloc( uint8_t*, in_file_bytes );
+
+   /* TODO: Select a plugin. */
+
+   do {
+      retval = perpix_read_file_bytes(
+         gc_plug_exts[i_plug], in_file_bytes, in_file_sz, p_grid_pack_h );
+      i_plug++;
+   } while( MERROR_OK != retval );
+
+cleanup:
+
    if( NULL != in_file_bytes ) {
       maug_munlock( in_file_bytes_h, in_file_bytes );
    }
 
    if( NULL != in_file_bytes_h ) {
       retrofil_close_mread( in_file_bytes, in_file_sz );
-   }
-
-   if( NULL != mod_exe ) {
-      mplug_free( mod_exe );
    }
 
    return retval;
