@@ -25,7 +25,7 @@ MERROR_RETVAL perpix_on_resize( uint16_t new_w, uint16_t new_h, void* data ) {
 }
 
 MERROR_RETVAL perpix_open_file(
-   const char* filename, struct PERPIX_GRID_PACK* grid_pack
+   const char* filename, MAUG_MHANDLE* p_grid_pack_h
 ) {
    MERROR_RETVAL retval = MERROR_OK;
    mplug_mod_t mod_exe = NULL;
@@ -35,8 +35,10 @@ MERROR_RETVAL perpix_open_file(
    struct PERPIX_PLUG_ENV plug_env;
    char file_ext[4] = "bmp";
    char plugin_call_buf[RETROFLAT_PATH_MAX + 1];
+   struct PERPIX_GRID test_grid;
 
-   assert( NULL != grid_pack );
+   /* TODO: Create if NULL. */
+   assert( NULL != *p_grid_pack_h );
 
    debug_printf( 3, "opening file: %s", filename );
    retval = retrofil_open_mread( filename, &in_file_bytes_h, &in_file_sz );
@@ -53,18 +55,36 @@ MERROR_RETVAL perpix_open_file(
    maug_mlock( in_file_bytes_h, in_file_bytes );
    maug_cleanup_if_null_alloc( uint8_t*, in_file_bytes );
 
-   plug_env.grid_pack = grid_pack;
-   plug_env.layer_idx = 0;
-   plug_env.buf = in_file_bytes;
-   plug_env.buf_sz = in_file_sz;
-   memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
-   maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "%s_read",
-      file_ext );
-   retval = mplug_call(
-      mod_exe, plugin_call_buf, &plug_env, sizeof( plug_env ) );
-   if( MERROR_OK != retval ) {
-      error_printf( "%s plugin returned error: %u", file_ext, retval );
-   }
+   do {
+      plug_env.flags = PERPIX_PLUG_FLAG_HEADER_ONLY;
+      plug_env.grid_pack = NULL;
+      plug_env.layer_idx = 0;
+      plug_env.buf = in_file_bytes;
+      plug_env.buf_sz = in_file_sz;
+      plug_env.test_grid = &test_grid;
+
+      /* Call the plugin to fill out the header. */
+      memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
+      maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "%s_read",
+         file_ext );
+      retval = mplug_call(
+         mod_exe, plugin_call_buf, &plug_env, sizeof( plug_env ) );
+      if( MERROR_OK != retval ) {
+         error_printf( "%s plugin returned error: %u", file_ext, retval );
+      }
+      debug_printf( 2,
+         "plugin returned parameters for: %u x %u grid with %u colors",
+         test_grid.w, test_grid.h, test_grid.palette_ncolors );
+
+      /* Create grid for layer. */
+      debug_printf( 2, "adding layer..." );
+      retval = grid_pack_add_layer(
+         test_grid.w, test_grid.h, test_grid.palette_ncolors, p_grid_pack_h );
+      maug_cleanup_if_not_ok();
+
+      /* TODO: Read palette and pixels. */
+   } while( PERPIX_PLUG_FLAG_MORE_LAYERS ==
+      (PERPIX_PLUG_FLAG_MORE_LAYERS & plug_env.flags) );
 
 cleanup:
 
@@ -166,16 +186,18 @@ int main( int argc, char** argv ) {
    maug_mzero( data, sizeof( struct PERPIX_DATA ) );
 
    /* Create an empty new grid_pack. */
-   retval = grid_pack_new_h( 16, 16, 16, &(data->grid_pack_h) );
+   retval = grid_pack_new_h( &(data->grid_pack_h) );
    maug_cleanup_if_not_ok();
    maug_cleanup_if_null_alloc( MAUG_MHANDLE, data->grid_pack_h );
 
    /* Try to load file. */
+   if( '\0' != g_file_to_open[0] ) {
+      retval = perpix_open_file( g_file_to_open, &(data->grid_pack_h) );
+   }
+
+   /* Setup screen zoom. */
    maug_mlock( data->grid_pack_h, grid_pack );
    maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
-   if( '\0' != g_file_to_open[0] ) {
-      retval = perpix_open_file( g_file_to_open, grid_pack );
-   }
    ui_scale_zoom( retroflat_screen_w(), retroflat_screen_h(),
       &(grid_pack->layers[data->layer_idx]) );
    maug_munlock( data->grid_pack_h, grid_pack );
