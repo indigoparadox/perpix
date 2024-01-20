@@ -6,7 +6,7 @@ static uint8_t g_ui_zoom = 10;
 MERROR_RETVAL ui_handle_input_queue( struct PERPIX_DATA* data ) {
    struct RETROFLAT_INPUT input_evt;
    RETROFLAT_IN_KEY input = 0;
-   struct PERPIX_GRID* grid = NULL;
+   struct PERPIX_GRID_PACK* grid_pack = NULL;
    MERROR_RETVAL retval = MERROR_OK;
 
    /* Process input events until none remain. */
@@ -20,17 +20,19 @@ MERROR_RETVAL ui_handle_input_queue( struct PERPIX_DATA* data ) {
 
       case RETROFLAT_MOUSE_B_LEFT:
          /* Lock the grid specially to draw this pixel. */
-         maug_mlock( data->grid_h, grid );
-         maug_cleanup_if_null_alloc( struct PERPIX_GRID*, grid );
+         maug_mlock( data->grid_pack_h, grid_pack );
+         maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
 
          if( UI_GRID_X < input_evt.mouse_x ) {
-            ui_click_px( data, grid, input_evt.mouse_x, input_evt.mouse_y );
+            ui_click_px( data, &(grid_pack->layers[data->layer_idx]),
+               input_evt.mouse_x, input_evt.mouse_y );
          } else if( UI_GRID_Y < input_evt.mouse_y ) {
             ui_click_palette(
-               data, grid, input_evt.mouse_x, input_evt.mouse_y );
+               data, &(grid_pack->layers[data->layer_idx]),
+               input_evt.mouse_x, input_evt.mouse_y );
          }
          
-         maug_munlock( data->grid_h, grid );
+         maug_munlock( data->grid_pack_h, grid_pack );
          break;
       }
 

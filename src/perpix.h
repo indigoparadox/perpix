@@ -34,6 +34,7 @@
 
 struct PERPIX_GRID {
    uint32_t version;
+   uint32_t grid_sz;
    uint32_t palette_offset;
    uint32_t px_offset;
    int32_t w;
@@ -43,21 +44,29 @@ struct PERPIX_GRID {
    uint32_t palette_ncolors;
 };
 
+struct PERPIX_GRID_PACK {
+   uint32_t version;
+   uint32_t count;
+   struct PERPIX_GRID layers[];
+};
+
 struct PERPIX_DATA {
    int init;
    uint8_t flags;
    uint8_t fg_idx;
    uint8_t bg_idx;
-   MAUG_MHANDLE grid_h;
+   uint32_t layer_idx;
+   MAUG_MHANDLE grid_pack_h;
 };
 
 struct PERPIX_PLUG_ENV {
    uint32_t version;
    uint8_t flags;
-   struct PERPIX_GRID* grid;
+   struct PERPIX_GRID_PACK* grid_pack;
    uint8_t* buf;
    size_t buf_sz;
    size_t layer_sz;
+   uint32_t layer_idx;
 };
 
 #include "ui.h"
