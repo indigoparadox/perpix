@@ -3,6 +3,9 @@
 #include <perpix.h>
 
 MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
+}
+
+MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
    MERROR_RETVAL retval = MERROR_OK;
    struct PERPIX_PLUG_ENV bmp_env;
    mplug_mod_t mod_exe = NULL;
