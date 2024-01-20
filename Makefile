@@ -47,18 +47,12 @@ $(eval $(call TGTWIN386,perpix))
 
 # Plugins
 
-perpix_bmp.so: plugins/bmp.c
-	gcc -Isrc -Imaug/src -DRETROFLAT_OS_UNIX $(PLUGIN_DEFINES) -fpic -shared -o $@ $<
+$(eval $(call TGT_WATCOM_WIN32_PLUG,perpix_bmp,plugins/bmp.c))
 
-perpix_bmp.o: plugins/bmp.c
-	wcc386 -Isrc -Imaug/src -DMAUG_OS_WIN \
-		-I$(WATCOM)/h/nt -bd $< -fo=$@ -DRETROFLAT_OS_WIN $(PLUGIN_DEFINES) -mf -5r -fp5
-
-perpix_bmp.dll: perpix_bmp.o
-	wlink system nt_dll name perpix_bmp file perpix_bmp
+$(eval $(call TGT_GCC_UNIX_PLUG,perpix_bmp,plugins/bmp.c))
 
 # Clean
 
 clean:
-	rm -rf $(CLEAN_TARGETS) *.so *.dll *.o
+	rm -rf $(CLEAN_TARGETS)
 
