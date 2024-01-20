@@ -91,34 +91,49 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
       goto cleanup;
    }
 
+   /* Figure out the number of layers remaining. */
    ico_field_num_imgs = ico_layers( plug_env );
    debug_printf( 3, "found %u icons in file...", ico_field_num_imgs );
+   if( ico_field_num_imgs > plug_env->layer_idx + 1 ) {
+      plug_env->flags |= PERPIX_PLUG_FLAG_MORE_LAYERS;
+   } else {
+      plug_env->flags &= ~PERPIX_PLUG_FLAG_MORE_LAYERS;
+   }
 
    /* TODO: Select an image. */
 
    retval = mplug_load( "./perpix_bmp", &mod_exe );
    maug_cleanup_if_not_ok();
 
-   for( i = 0 ; ico_field_num_imgs > i ; i++ ) {
-      if( i >= plug_env->grid_pack->count ) {
-         error_printf( "grid has insufficient layers: " UPRINTF_U32_FMT,
-            plug_env->grid_pack->count );
-         retval = MERROR_OVERFLOW;
-         goto cleanup;
-      }
-      memcpy( &bmp_env, plug_env, sizeof( struct PERPIX_PLUG_ENV ) );
-      bmp_env.layer_idx = i;
+   memcpy( &bmp_env, plug_env, sizeof( struct PERPIX_PLUG_ENV ) );
 
-      /* Get bitmap offset, etc from ICO entry. */
-      ico_read_entry( &bmp_env );
+   /* Get bitmap offset, etc from ICO entry. */
+   ico_read_entry( &bmp_env );
 
-      /* Pass icon XOR mask to bitmap reader. */
-      retval = mplug_call(
-         mod_exe, "bmp_read_info_header", &bmp_env, sizeof( bmp_env ) );
-      if( MERROR_OK != retval ) {
-         error_printf( "plugin returned error: %u", retval );
-         goto cleanup;
-      }
+   /* Pass icon XOR mask to bitmap reader. */
+   retval = mplug_call(
+      mod_exe, "bmp_read_info_header", &bmp_env, sizeof( bmp_env ) );
+   if( MERROR_OK != retval ) {
+      error_printf( "plugin returned error: %u", retval );
+      goto cleanup;
+   }
+
+   /* If this is the test pass, cut height in half. */
+   if( NULL != plug_env->test_grid ) {
+      plug_env->test_grid->h /= 2;
+      goto cleanup;
+   }
+
+   /* This isn't the test pass, so read the image. */
+   debug_printf( 2, "loading layer " UPRINTF_U32_FMT " pixels...",
+      bmp_env.layer_idx );
+   bmp_env.buf = &(bmp_env.buf[40 +
+      (bmp_env.grid_pack->layers[bmp_env.layer_idx].palette_ncolors * 4)]);
+   retval = mplug_call(
+      mod_exe, "bmp_read_px", &bmp_env, sizeof( bmp_env ) );
+   if( MERROR_OK != retval ) {
+      error_printf( "plugin returned error: %u", retval );
+      goto cleanup;
    }
 
 cleanup:
