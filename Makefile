@@ -49,7 +49,11 @@ $(eval $(call TGTWIN386,perpix))
 
 $(eval $(call TGT_WATCOM_WIN32_PLUG,perpix_bmp,plugins/bmp.c))
 
+$(eval $(call TGT_WATCOM_WIN32_PLUG,perpix_ico,plugins/ico.c))
+
 $(eval $(call TGT_GCC_UNIX_PLUG,perpix_bmp,plugins/bmp.c))
+
+$(eval $(call TGT_GCC_UNIX_PLUG,perpix_ico,plugins/ico.c))
 
 # Clean
 
