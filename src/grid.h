@@ -2,6 +2,8 @@
 #ifndef GRID_H
 #define GRID_H
 
+#include <math.h>
+
 #define grid_palette( p_grid ) \
    (uint32_t*)(((uint8_t*)(p_grid)) + (p_grid)->palette_offset)
 
