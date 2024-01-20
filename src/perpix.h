@@ -11,6 +11,19 @@
 
 #define PERPIX_FLAG_REDRAW_UI 0x01
 
+/**
+ * \brief Added to ::PERPIX_PLUG_ENV flags when passing to header reading
+ *        function to return layer size, and *not* modify the passed grid!
+ */
+/* #define PERPIX_FLAG_LAYER_SZ  0x02 */
+
+#define PERPIX_PLUG_FLAG_HEADER_ONLY 0x04
+
+/**
+ * \brief Set by plugin, indicates more layers available.
+ */
+#define PERPIX_PLUG_FLAG_MORE_LAYERS 0x02
+
 #ifndef PERPIX_GRID_W_MAX
 #  define PERPIX_GRID_W_MAX 128
 #endif /* !PERPIX_GRID_W_MAX */
@@ -39,19 +52,20 @@ struct PERPIX_GRID {
    uint32_t px_offset;
    int32_t w;
    int32_t h;
-   uint32_t bpp;
    uint32_t data_sz;
    uint32_t palette_ncolors;
 };
 
 struct PERPIX_GRID_PACK {
    uint32_t version;
+   /*! \brief Size of grid pack in bytes as passed to its malloc() call. */
+   uint32_t sz;
    uint32_t count;
    struct PERPIX_GRID layers[];
 };
 
 struct PERPIX_DATA {
-   int init;
+   uint8_t init;
    uint8_t flags;
    uint8_t fg_idx;
    uint8_t bg_idx;
@@ -63,10 +77,12 @@ struct PERPIX_PLUG_ENV {
    uint32_t version;
    uint8_t flags;
    struct PERPIX_GRID_PACK* grid_pack;
+   struct PERPIX_GRID* test_grid;
    uint8_t* buf;
    size_t buf_sz;
-   size_t layer_sz;
+   uint16_t bpp;
    uint32_t layer_idx;
+   struct PERPIX_GRID layer_header;
 };
 
 #include "ui.h"
