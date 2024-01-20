@@ -1,11 +1,8 @@
 
 #define MAUG_C
 #define RETROFLT_C
+#define RETROFIL_C
 #include "perpix.h"
-#include <fcntl.h> /* open() */
-#include <sys/mman.h> /* mmap() */
-#include <sys/stat.h> /* fstat() */
-#include <unistd.h> /* close() */
 
 char g_file_to_open[RETROFLAT_PATH_MAX];
 
@@ -32,30 +29,24 @@ MERROR_RETVAL perpix_open_file(
 ) {
    MERROR_RETVAL retval = MERROR_OK;
    plugin_mod_t mod_exe = NULL;
-   int in_file = 0;
+   MAUG_MHANDLE in_file_bytes_h = NULL;
    uint8_t* in_file_bytes = NULL;
-   struct stat st;
+   size_t in_file_sz = 0;
 
    assert( NULL != grid );
 
-   in_file = open( filename, O_RDONLY );
-   if( 0 >= in_file ) {
-      error_printf( "could not open file: %s", filename );
-      retval = MERROR_FILE;
-      goto cleanup;
-   }
-
-   fstat( in_file, &st );
-   in_file_bytes = 
-      mmap( (caddr_t)0, st.st_size, PROT_READ, MAP_SHARED,  in_file, 0 );
-
-   assert( NULL != in_file_bytes );
-
-   retval = plugin_load( "./perpix_bmp.so", &mod_exe );
+   debug_printf( 3, "opening file: %s", filename );
+   retval = retrofil_open_read( filename, &in_file_bytes_h, &in_file_sz );
    maug_cleanup_if_not_ok();
 
+   retval = plugin_load( "perpix_bmp", &mod_exe );
+   maug_cleanup_if_not_ok();
+
+   maug_mlock( in_file_bytes_h, in_file_bytes );
+   maug_cleanup_if_null_alloc( uint8_t*, in_file_bytes );
+
    retval = plugin_call(
-      mod_exe, "bmp_read", grid, in_file_bytes, st.st_size, NULL );
+      mod_exe, "bmp_read", grid, in_file_bytes, in_file_sz, NULL );
    if( MERROR_OK != retval ) {
       error_printf( "plugin returned error: %u", retval );
    }
@@ -63,11 +54,11 @@ MERROR_RETVAL perpix_open_file(
 cleanup:
 
    if( NULL != in_file_bytes ) {
-      munmap( in_file_bytes, st.st_size );
+      maug_munlock( in_file_bytes_h, in_file_bytes );
    }
 
-   if( 0 < in_file ) {
-      close( in_file );
+   if( NULL != in_file_bytes_h ) {
+      retrofil_close_read( in_file_bytes, in_file_sz );
    }
 
    return retval;

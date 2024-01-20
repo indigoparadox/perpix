@@ -7,13 +7,27 @@
 #endif /* RETROFLAT_OS_WIN */
 
 MERROR_RETVAL plugin_load(
-   const char* plugin_path, plugin_mod_t* p_mod_exe
+   const char* plugin_basename, plugin_mod_t* p_mod_exe
 ) {
    MERROR_RETVAL retval = MERROR_OK;
+   char plugin_path[RETROFLAT_PATH_MAX + 1];
+#ifdef RETROFLAT_OS_WIN
+   size_t i = 0;
+#endif /* RETROFLAT_OS_WIN */
+
+   memset( plugin_path, '\0', RETROFLAT_PATH_MAX + 1 );
 
 #if defined( RETROFLAT_OS_UNIX )
+   maug_snprintf( plugin_path, RETROFLAT_PATH_MAX, "%s.so", plugin_basename );
    *p_mod_exe = dlopen( plugin_path, RTLD_LAZY );
 #elif defined( RETROFLAT_OS_WIN )
+   maug_snprintf(
+      plugin_path, RETROFLAT_PATH_MAX, "%s.dll", plugin_basename );
+   for( i = 0 ; RETROFLAT_PATH_MAX > i ; i++ ) {
+      if( '/' == plugin_path[i] ) {
+         plugin_path[i] = '\\';
+      }
+   }
    *p_mod_exe = LoadLibrary( plugin_path );
 #else
 #  error "dlopen undefined!"
@@ -34,20 +48,24 @@ MERROR_RETVAL plugin_call(
    MERROR_RETVAL retval = MERROR_OK;
    plugin_proc_t plugin_proc = (plugin_proc_t)NULL;
 #ifdef RETROFLAT_OS_WIN
-   char proc_name_ex[256];
+   char proc_name_ex[RETROFLAT_PATH_MAX + 1];
 #endif /* RETROFLAT_OS_WIN */
 
 #ifdef RETROFLAT_OS_UNIX
    plugin_proc = dlsym( mod_exe, proc_name );
 #elif defined( RETROFLAT_OS_WIN )
-   /* Append a _ to the proc_name because Watcom? Windows? */
-   maug_snprintf( proc_name_ex, 255, "%s_", proc_name );
+   memset( proc_name_ex, '\0', RETROFLAT_PATH_MAX + 1 );
+
+   /* Append a _ to the proc_name to match calling convention name scheme. */
+   maug_snprintf( proc_name_ex, RETROFLAT_PATH_MAX, "%s_", proc_name );
    plugin_proc = (plugin_proc_t)GetProcAddress( mod_exe, proc_name_ex );
 #else
 #  error "dlsym undefined!"
 #endif
 
    if( (plugin_proc_t)NULL == plugin_proc ) {
+      error_printf( "unable to load proc: %s", proc_name );
+      retval = MERROR_FILE;
       goto cleanup;
    }
 
