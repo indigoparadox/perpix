@@ -47,9 +47,16 @@ struct PERPIX_DATA {
    MAUG_MHANDLE grid_h;
 };
 
+struct PERPIX_PLUG_ENV {
+   uint32_t version;
+   uint8_t flags;
+   struct PERPIX_GRID* grid;
+   uint8_t* buf;
+   size_t buf_sz;
+};
+
 #include "ui.h"
 #include "grid.h"
-#include "plugin.h"
 
 #endif /* PERPIX_H */
 

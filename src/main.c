@@ -28,10 +28,11 @@ MERROR_RETVAL perpix_open_file(
    const char* filename, struct PERPIX_GRID* grid
 ) {
    MERROR_RETVAL retval = MERROR_OK;
-   plugin_mod_t mod_exe = NULL;
+   mplug_mod_t mod_exe = NULL;
    MAUG_MHANDLE in_file_bytes_h = NULL;
    uint8_t* in_file_bytes = NULL;
    size_t in_file_sz = 0;
+   struct PERPIX_PLUG_ENV plug_env;
 
    assert( NULL != grid );
 
@@ -39,14 +40,16 @@ MERROR_RETVAL perpix_open_file(
    retval = retrofil_open_read( filename, &in_file_bytes_h, &in_file_sz );
    maug_cleanup_if_not_ok();
 
-   retval = plugin_load( "perpix_bmp", &mod_exe );
+   retval = mplug_load( "./perpix_bmp", &mod_exe );
    maug_cleanup_if_not_ok();
 
    maug_mlock( in_file_bytes_h, in_file_bytes );
    maug_cleanup_if_null_alloc( uint8_t*, in_file_bytes );
 
-   retval = plugin_call(
-      mod_exe, "bmp_read", grid, in_file_bytes, in_file_sz, NULL );
+   plug_env.grid = grid;
+   plug_env.buf = in_file_bytes;
+   plug_env.buf_sz = in_file_sz;
+   retval = mplug_call( mod_exe, "bmp_read", &plug_env, sizeof( plug_env ) );
    if( MERROR_OK != retval ) {
       error_printf( "plugin returned error: %u", retval );
    }

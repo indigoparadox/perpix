@@ -345,13 +345,12 @@ struct CONVERT_GRID* bmp_read_file(
 }
 #endif
 
-MERROR_RETVAL bmp_read_header(
-   struct PERPIX_GRID* grid, const uint8_t* buf, size_t buf_sz,
-   struct BMP_OPTS* opts
-) {
+MERROR_RETVAL bmp_read_header( struct PERPIX_PLUG_ENV* plug_env ) {
    MERROR_RETVAL retval = MERROR_OK;
    int bmp_compression = 0,
       hdr_sz = 0;
+   struct PERPIX_GRID* grid = plug_env->grid;
+   uint8_t* buf = plug_env->buf;
 
    /* Read the bitmap image header. */
    hdr_sz = perpix_lsbf_32( buf, 0 );
@@ -367,7 +366,7 @@ MERROR_RETVAL bmp_read_header(
       /* Note that the bitmap is upside down! */
       debug_printf( 2, "bitmap is upside down: " UPRINTF_S32_FMT,
          grid->h );
-      opts->flags |= BMP_OPTS_FLAG_UPSIDE_DOWN;
+      plug_env->flags |= BMP_OPTS_FLAG_UPSIDE_DOWN;
       grid->h *= -1;
    }
 
@@ -395,13 +394,13 @@ cleanup:
    return retval;
 }
 
-MERROR_RETVAL bmp_read_palette(
-   struct PERPIX_GRID* grid, const uint8_t* buf, size_t buf_sz,
-   struct BMP_OPTS* opts
-) {
+MERROR_RETVAL bmp_read_palette( struct PERPIX_PLUG_ENV* plug_env ) {
    MERROR_RETVAL retval = MERROR_OK;
    size_t i = 0;
    uint32_t* p_palette = NULL;
+   struct PERPIX_GRID* grid = plug_env->grid;
+   uint8_t* buf = plug_env->buf;
+   size_t buf_sz = plug_env->buf_sz;
 
    p_palette = grid_palette( grid );
 
@@ -420,13 +419,7 @@ cleanup:
    return retval;
 }
 
-#ifdef RETROFLAT_OS_WIN
-extern __declspec( dllexport )
-#endif /* RETROFLAT_OS_WIN */
-MERROR_RETVAL bmp_read(
-   struct PERPIX_GRID* grid, const uint8_t* buf, size_t buf_sz,
-   struct BMP_OPTS* opts_in_ignore
-) {
+MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
    MERROR_RETVAL retval = MERROR_OK;
    uint32_t x = 0,
       y = 0,
@@ -436,11 +429,12 @@ MERROR_RETVAL bmp_read(
       bmp_data_offset = 0,
       bmp_data_size = 0;
    char byte_buffer = 0;
-   struct BMP_OPTS opts;
    uint8_t* p_px = NULL;
+   struct PERPIX_GRID* grid = plug_env->grid;
+   uint8_t* buf = plug_env->buf;
+   size_t buf_sz = plug_env->buf_sz;
 
-   opts.sz = sizeof( struct BMP_OPTS );
-   opts.flags = 0;
+   debug_printf( 3, "bmp plugin started reading..." );
 
    if( 0 == grid->version || 1 < grid->version ) {
       error_printf( "don't know how to write grid version: " UPRINTF_U32_FMT,
@@ -448,6 +442,8 @@ MERROR_RETVAL bmp_read(
       retval = MERROR_FILE;
       goto cleanup;
    }
+
+   plug_env->flags = 0;
 
 #if 0
    /* Read the bitmap file header. */
@@ -469,13 +465,15 @@ MERROR_RETVAL bmp_read(
    bmp_data_offset = bmp_int( uint32_t, buf, 10 );
    debug_printf( 2, "bitmap data starts at %u bytes", bmp_data_offset );
 
-   retval = bmp_read_header( grid, &(buf[14 /* BMP -File- Header Sz */]),
-      buf_sz - 14, &opts );
+   plug_env->buf += 14; /* BMP -file- header size. */
+   plug_env->buf_sz -= 14;
+   retval = bmp_read_header( plug_env );
    maug_cleanup_if_not_ok();
 
-   retval = bmp_read_palette(
-      grid, &(buf[14 + 40 /* BMP -Info- Header Sz */]),
-      buf_sz - (14 + 40), &opts );
+   plug_env->buf += 40; /* BMP -info- header size. */
+   plug_env->buf_sz -= 40;
+   retval = bmp_read_header( plug_env );
+   retval = bmp_read_palette( plug_env );
    maug_cleanup_if_not_ok();
 
    /* Figure out where we're writing data to. */

@@ -35,11 +35,6 @@ BMP_DATA_HEADER {
    uint32_t colors_important;
 };
 
-struct BMP_OPTS {
-   uint32_t sz;
-   uint8_t flags;
-};
-
 #define BMP_OPTS_FLAG_UPSIDE_DOWN 0x01
 
 #define BMP_COMPRESSION_NONE (0)
