@@ -16,11 +16,13 @@ MERROR_RETVAL perpix_on_resize( uint16_t new_w, uint16_t new_h, void* data ) {
    retroflat_resize_v();
 
    maug_mlock( data_p->grid_pack_h, grid_pack )
+   maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
    ui_scale_zoom( new_w, new_h, &(grid_pack->layers[data_p->layer_idx]) );
    maug_munlock( data_p->grid_pack_h, grid_pack )
 
    data_p->flags |= PERPIX_FLAG_REDRAW_UI;
 
+cleanup:
    return retval;
 }
 
@@ -33,9 +35,10 @@ MERROR_RETVAL perpix_open_file(
    uint8_t* in_file_bytes = NULL;
    size_t in_file_sz = 0;
    struct PERPIX_PLUG_ENV plug_env;
-   char file_ext[4] = "bmp";
+   char file_ext[4] = "ico";
    char plugin_call_buf[RETROFLAT_PATH_MAX + 1];
    struct PERPIX_GRID test_grid;
+   struct PERPIX_GRID_PACK* grid_pack = NULL;
 
    /* TODO: Create if NULL. */
    assert( NULL != *p_grid_pack_h );
@@ -55,10 +58,10 @@ MERROR_RETVAL perpix_open_file(
    maug_mlock( in_file_bytes_h, in_file_bytes );
    maug_cleanup_if_null_alloc( uint8_t*, in_file_bytes );
 
+   plug_env.layer_idx = 0;
    do {
       plug_env.flags = PERPIX_PLUG_FLAG_HEADER_ONLY;
       plug_env.grid_pack = NULL;
-      plug_env.layer_idx = 0;
       plug_env.buf = in_file_bytes;
       plug_env.buf_sz = in_file_sz;
       plug_env.test_grid = &test_grid;
@@ -82,7 +85,30 @@ MERROR_RETVAL perpix_open_file(
          test_grid.w, test_grid.h, test_grid.palette_ncolors, p_grid_pack_h );
       maug_cleanup_if_not_ok();
 
+      maug_mlock( *p_grid_pack_h, grid_pack )
+      maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
+
+      plug_env.flags &= ~PERPIX_PLUG_FLAG_HEADER_ONLY;
+      plug_env.grid_pack = grid_pack;
+      plug_env.test_grid = NULL;
+
       /* TODO: Read palette and pixels. */
+      memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
+      maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "%s_read",
+         file_ext );
+      retval = mplug_call(
+         mod_exe, plugin_call_buf, &plug_env, sizeof( plug_env ) );
+      if( MERROR_OK != retval ) {
+         error_printf( "%s plugin returned error: %u", file_ext, retval );
+         goto cleanup;
+      }
+
+      maug_munlock( *p_grid_pack_h, grid_pack )
+
+      debug_printf(
+         2, "successfully loaded layer %u...", plug_env.layer_idx );
+
+      plug_env.layer_idx++;
    } while( PERPIX_PLUG_FLAG_MORE_LAYERS ==
       (PERPIX_PLUG_FLAG_MORE_LAYERS & plug_env.flags) );
 

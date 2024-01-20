@@ -416,7 +416,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
       grid->h = bmp_h;
    } else {
       /* We've been passed a valid grid, so make sure the image fits! */
-      if( bmp_w != grid->w || bmp_h != grid->h ) {
+      if( bmp_w != grid->w /* XXX || bmp_h != grid->h */ ) {
          error_printf( "passed grid has incompatible size! (has %u x %u, "
             "needs %u x %u)", grid->w, grid->h, bmp_w, bmp_h );
          retval = MERROR_OVERFLOW;
@@ -480,6 +480,9 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
       goto cleanup;
    }
 
+   debug_printf( 2, "setting up palette for layer: " UPRINTF_U32_FMT,
+      plug_env->layer_idx );
+
    p_palette = grid_palette( grid );
 
    for( i = 0 ; grid->palette_ncolors > i ; i++ ) {
@@ -535,8 +538,8 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
    /* Grid starts from top, bitmap starts from bottom. */
    /* TODO: Use upside-down flag! */
    y = grid->h - 1;
-   while( buf_sz > byte_idx ) {
-      debug_printf( 0, "bmp: byte_idx %u, bit_idx %u, row %d, col %d (%u)",
+   while( grid->h > y ) {
+      debug_printf( 1, "bmp: byte_idx %u, bit_idx %u, row %d, col %d (%u)",
          byte_idx, bit_idx, y, x, (y * grid->w) + x );
       if( 0 == bit_idx % 8 ) {
          byte_buffer = buf[byte_idx];
