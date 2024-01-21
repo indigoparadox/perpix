@@ -370,10 +370,10 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    struct PERPIX_GRID* grid = NULL;
    uint32_t bmp_w = 0,
       bmp_h = 0;
-   uint16_t bmp_bpp = 0;
    uint32_t bmp_ncolors = 0;
 
-   debug_printf( 3, "bmp plugin started header..." );
+   debug_printf( 3, "bmp plugin started header (%s pass)...",
+      NULL == plug_env->test_grid ? "pixel" : "info");
 
    if( NULL != plug_env->test_grid ) {
       grid = plug_env->test_grid;
@@ -387,7 +387,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
       }
 
       /* Select our desired layer. */
-      grid = &(plug_env->grid_pack->layers[plug_env->layer_idx]);
+      grid = grid_get_layer_p( plug_env->grid_pack, plug_env->layer_idx );
    }
 
    /* Read the bitmap image header. */
@@ -467,8 +467,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
    MERROR_RETVAL retval = MERROR_OK;
    size_t i = 0;
    uint32_t* p_palette = NULL;
-   struct PERPIX_GRID* grid = 
-      &(plug_env->grid_pack->layers[plug_env->layer_idx]);
+   struct PERPIX_GRID* grid = NULL;
 
    if( plug_env->layer_idx >= plug_env->grid_pack->count ) {
       error_printf( "invalid grid pack layer selected: " UPRINTF_U32_FMT,
@@ -479,6 +478,8 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
 
    debug_printf( 2, "setting up palette for layer: " UPRINTF_U32_FMT,
       plug_env->layer_idx );
+
+   grid = grid_get_layer_p( plug_env->grid_pack, plug_env->layer_idx );
 
    p_palette = grid_palette( grid );
 
@@ -504,8 +505,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
       i = 0,
       byte_idx = 0,
       bit_idx = 0;
-   struct PERPIX_GRID* grid = 
-      &(plug_env->grid_pack->layers[plug_env->layer_idx]);
+   struct PERPIX_GRID* grid = NULL;
    uint8_t* p_grid_px = NULL;
    uint8_t byte_buffer = 0,
       byte_mask = 0,
@@ -519,6 +519,8 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
    }
 
    debug_printf( 3, "bmp plugin started pixels..." );
+
+   grid = grid_get_layer_p( plug_env->grid_pack, plug_env->layer_idx );
 
    /* Figure out where we're writing data to. */
    p_grid_px = grid_px( grid );
@@ -559,7 +561,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
       }
 
       /* TODO: Bounds checking! */
-      assert( (y * sz_x) + x < (buf_sz * (8 / grid->bpp)) );
+      /* assert( (y * sz_x) + x < (buf_sz * (8 / grid->bpp)) ); */
 
       /* Use the byte mask to place the bits for this pixel in the
        * pixel buffer.
@@ -602,10 +604,6 @@ cleanup:
    return retval;
 }
 
-MPLUG_EXPORT MERROR_RETVAL bmp_layer_sz( struct PERPIX_PLUG_ENV* plug_env ) {
-   /* TODO */
-}
-
 MPLUG_EXPORT MERROR_RETVAL bmp_layers( struct PERPIX_PLUG_ENV* plug_env ) {
    return 1; /* Bitmap file only has one layer! */
 }
@@ -614,7 +612,6 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
    MERROR_RETVAL retval = MERROR_OK;
    struct PERPIX_PLUG_ENV hdr_env;
    /* Bitmap *file* only has one layer. */
-   struct PERPIX_GRID* grid = &(plug_env->grid_pack->layers[0]);
    uint32_t bmp_data_offset = 0;
    size_t bmp_file_sz = 0;
 

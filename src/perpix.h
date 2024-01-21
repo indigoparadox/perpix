@@ -11,6 +11,8 @@
 
 #define PERPIX_FLAG_REDRAW_UI 0x01
 
+#define PERPIX_MASK_PX_TRANS 0x80
+
 /**
  * \brief Added to ::PERPIX_PLUG_ENV flags when passing to header reading
  *        function to return layer size, and *not* modify the passed grid!
@@ -47,7 +49,7 @@
 
 struct PERPIX_GRID {
    uint32_t version;
-   uint32_t grid_sz;
+   uint32_t sz;
    uint32_t palette_offset;
    uint32_t px_offset;
    int32_t w;
@@ -61,7 +63,6 @@ struct PERPIX_GRID_PACK {
    /*! \brief Size of grid pack in bytes as passed to its malloc() call. */
    uint32_t sz;
    uint32_t count;
-   struct PERPIX_GRID layers[];
 };
 
 struct PERPIX_DATA {

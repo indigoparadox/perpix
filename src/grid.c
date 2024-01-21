@@ -47,6 +47,7 @@ MERROR_RETVAL grid_pack_add_layer(
    size_t grid_pack_new_sz = 0;
    size_t pal_sz = sizeof( uint32_t ) * pal_ncolors;
    uint32_t* p_palette = NULL;
+   struct PERPIX_GRID* grid_new = NULL;
 
    maug_mlock( *p_grid_pack_h, grid_pack );
    maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
@@ -59,6 +60,10 @@ MERROR_RETVAL grid_pack_add_layer(
 
    maug_munlock( *p_grid_pack_h, grid_pack );
    
+   debug_printf( 2,
+      "adding %ux%u-pixel %u-color layer (" SIZE_T_FMT
+      " bytes) to grid pack...", w, h, pal_ncolors, grid_new_sz );
+
    /* Allocate space for the new layer. */
    grid_pack_new_h = maug_mrealloc( *p_grid_pack_h, 1, grid_pack_new_sz );
    maug_cleanup_if_null_alloc( MAUG_MHANDLE, grid_pack_new_h );
@@ -67,31 +72,32 @@ MERROR_RETVAL grid_pack_add_layer(
    maug_mlock( *p_grid_pack_h, grid_pack );
    maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
 
-   maug_mzero( &(grid_pack->layers[grid_pack->count]), grid_new_sz );
+   /* Configure the grid pack to account for new layer. */
+   grid_pack->sz = grid_pack_new_sz;
+   grid_pack->count++;
 
-   grid_pack->layers[grid_pack->count].version = 1;
-   grid_pack->layers[grid_pack->count].w = w;
-   grid_pack->layers[grid_pack->count].h = h;
-   grid_pack->layers[grid_pack->count].palette_ncolors = pal_ncolors;
-   grid_pack->layers[grid_pack->count].palette_offset =
-      sizeof( struct PERPIX_GRID );
-   grid_pack->layers[grid_pack->count].px_offset =
-      sizeof( struct PERPIX_GRID ) + pal_sz;
+   grid_new = grid_get_layer_p( grid_pack, grid_pack->count - 1 );
+
+   maug_mzero( grid_new, grid_new_sz );
+
+   grid_new->version = 1;
+   grid_new->sz = grid_new_sz;
+   grid_new->w = w;
+   grid_new->h = h;
+   grid_new->palette_ncolors = pal_ncolors;
+   grid_new->palette_offset = sizeof( struct PERPIX_GRID );
+   grid_new->px_offset = sizeof( struct PERPIX_GRID ) + pal_sz;
 
    /* Setup palette. */
    debug_printf( 1, "setting up grid palette..." );
 
-   p_palette = grid_palette( &(grid_pack->layers[grid_pack->count]) );
+   p_palette = grid_palette( grid_new );
 
    #define GRID_PAL_FILL( idx, name, val ) \
       assert( idx < pal_ncolors ); \
       p_palette[idx] = val;
 
    PERPIX_DEF_COLOR_TABLE( GRID_PAL_FILL );
-
-   /* Configure the grid pack to account for new layer. */
-   grid_pack->sz = grid_pack_new_sz;
-   grid_pack->count++;
 
 cleanup:
 
