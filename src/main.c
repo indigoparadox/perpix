@@ -11,6 +11,7 @@ MERROR_RETVAL perpix_on_resize( uint16_t new_w, uint16_t new_h, void* data ) {
    MERROR_RETVAL retval = MERROR_OK;
    struct PERPIX_DATA* data_p = (struct PERPIX_DATA*)data;
    struct PERPIX_GRID_PACK* grid_pack = NULL;
+   struct PERPIX_GRID* grid = NULL;
 
    /* Resize the virtual buffer and redraw the UI. */
 
@@ -18,7 +19,8 @@ MERROR_RETVAL perpix_on_resize( uint16_t new_w, uint16_t new_h, void* data ) {
 
    maug_mlock( data_p->grid_pack_h, grid_pack )
    maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
-   ui_scale_zoom( new_w, new_h, &(grid_pack->layers[data_p->layer_idx]) );
+   grid = grid_get_layer_p( grid_pack, data_p->layer_idx );
+   ui_scale_zoom( new_w, new_h, grid );
    maug_munlock( data_p->grid_pack_h, grid_pack )
 
    data_p->flags |= PERPIX_FLAG_REDRAW_UI;
@@ -67,7 +69,6 @@ MERROR_RETVAL perpix_read_file_bytes(
          test_grid.w, test_grid.h, test_grid.palette_ncolors );
 
       /* Create grid for layer. */
-      debug_printf( 2, "adding layer..." );
       retval = grid_pack_add_layer(
          test_grid.w, test_grid.h, test_grid.palette_ncolors, p_grid_pack_h );
       maug_cleanup_if_not_ok();
@@ -79,7 +80,7 @@ MERROR_RETVAL perpix_read_file_bytes(
       plug_env.grid_pack = grid_pack;
       plug_env.test_grid = NULL;
 
-      /* TODO: Read palette and pixels. */
+      /* Read palette and pixels. */
       memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
       maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "%s_read",
          plug_ext );
@@ -117,7 +118,7 @@ MERROR_RETVAL perpix_open_file(
    size_t in_file_sz = 0;
    size_t i_plug = 0;
 
-      /* TODO: Create if NULL. */
+   /* TODO: Create if NULL. */
    assert( NULL != *p_grid_pack_h );
 
    debug_printf( 3, "opening file: %s", filename );
@@ -127,13 +128,16 @@ MERROR_RETVAL perpix_open_file(
    maug_mlock( in_file_bytes_h, in_file_bytes );
    maug_cleanup_if_null_alloc( uint8_t*, in_file_bytes );
 
-   /* TODO: Select a plugin. */
-
+   /* Select a plugin based on the first one not to fail. */
    do {
       retval = perpix_read_file_bytes(
          gc_plug_exts[i_plug], in_file_bytes, in_file_sz, p_grid_pack_h );
       i_plug++;
-   } while( MERROR_OK != retval );
+   } while( i_plug < 2 && MERROR_OK != retval );
+
+   if( MERROR_OK != retval ) {
+      goto cleanup;
+   }
 
 cleanup:
 
@@ -151,6 +155,7 @@ cleanup:
 void perpix_loop( struct PERPIX_DATA* data ) {
    struct PERPIX_GRID_PACK* grid_pack = NULL;
    MERROR_RETVAL retval = MERROR_OK;
+   struct PERPIX_GRID* grid = NULL;
 
    retroflat_draw_lock( NULL );
 
@@ -170,9 +175,15 @@ void perpix_loop( struct PERPIX_DATA* data ) {
          retroflat_screen_w(), retroflat_screen_h(),
          RETROFLAT_FLAGS_FILL );
 
-      ui_draw_palette( &(grid_pack->layers[data->layer_idx]) );
+      debug_printf( 1, "redrawing UI (layer %u)...", data->layer_idx );
 
-      ui_draw_grid( &(grid_pack->layers[data->layer_idx]) );
+      grid = grid_get_layer_p( grid_pack, data->layer_idx );
+
+      ui_draw_palette( grid );
+
+      ui_draw_grid( grid );
+
+      ui_draw_layer_icons( grid_pack );
 
       data->flags &= ~PERPIX_FLAG_REDRAW_UI;
    }
@@ -203,6 +214,7 @@ int main( int argc, char** argv ) {
    MAUG_MHANDLE data_h = (MAUG_MHANDLE)NULL;
    struct PERPIX_DATA* data = NULL;
    struct PERPIX_GRID_PACK* grid_pack = NULL;
+   struct PERPIX_GRID* grid = NULL;
    
    /* === Setup === */
 
@@ -238,13 +250,14 @@ int main( int argc, char** argv ) {
    /* Try to load file. */
    if( '\0' != g_file_to_open[0] ) {
       retval = perpix_open_file( g_file_to_open, &(data->grid_pack_h) );
+      maug_cleanup_if_not_ok();
    }
 
    /* Setup screen zoom. */
    maug_mlock( data->grid_pack_h, grid_pack );
    maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
-   ui_scale_zoom( retroflat_screen_w(), retroflat_screen_h(),
-      &(grid_pack->layers[data->layer_idx]) );
+   grid = grid_get_layer_p( grid_pack, data->layer_idx );
+   ui_scale_zoom( retroflat_screen_w(), retroflat_screen_h(), grid );
    maug_munlock( data->grid_pack_h, grid_pack );
    maug_cleanup_if_not_ok();
 

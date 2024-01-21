@@ -8,6 +8,7 @@ MERROR_RETVAL ui_handle_input_queue( struct PERPIX_DATA* data ) {
    RETROFLAT_IN_KEY input = 0;
    struct PERPIX_GRID_PACK* grid_pack = NULL;
    MERROR_RETVAL retval = MERROR_OK;
+   struct PERPIX_GRID* grid = NULL;
 
    /* Process input events until none remain. */
    do {
@@ -23,13 +24,12 @@ MERROR_RETVAL ui_handle_input_queue( struct PERPIX_DATA* data ) {
          maug_mlock( data->grid_pack_h, grid_pack );
          maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
 
+         grid = grid_get_layer_p( grid_pack, data->layer_idx );
          if( UI_GRID_X < input_evt.mouse_x ) {
-            ui_click_px( data, &(grid_pack->layers[data->layer_idx]),
-               input_evt.mouse_x, input_evt.mouse_y );
+            ui_click_px( data, grid, input_evt.mouse_x, input_evt.mouse_y );
          } else if( UI_GRID_Y < input_evt.mouse_y ) {
             ui_click_palette(
-               data, &(grid_pack->layers[data->layer_idx]),
-               input_evt.mouse_x, input_evt.mouse_y );
+               data, grid, input_evt.mouse_x, input_evt.mouse_y );
          }
          
          maug_munlock( data->grid_pack_h, grid_pack );
@@ -75,6 +75,7 @@ void ui_draw_grid( struct PERPIX_GRID* grid ) {
    uint16_t x_iter = 0,
       y_iter = 0;
    uint8_t* p_px = NULL;
+   uint8_t grid_px = 0;
 
    p_px = grid_px( grid );
 
@@ -83,6 +84,20 @@ void ui_draw_grid( struct PERPIX_GRID* grid ) {
    
    for( y_iter = 0 ; grid->h > y_iter ; y_iter++ ) {
       for( x_iter = 0 ; grid->w > x_iter ; x_iter++ ) {
+         
+         grid_px = grid_px_at( grid, p_px, x_iter, y_iter );
+         
+         if( PERPIX_MASK_PX_TRANS == (PERPIX_MASK_PX_TRANS & grid_px) ) {
+            /* TODO: Draw transparent color. */
+
+            grid_px &= ~PERPIX_MASK_PX_TRANS;
+         }
+
+         if( 16 <= grid_px ) {
+            error_printf( "invalid pixel at %ux%u: 0x%02x",
+               x_iter, y_iter, grid_px );
+            continue;
+         }
 
          /* Don't bother with the palette... ui_draw_palette() should've
           * taken care of it!
@@ -90,7 +105,7 @@ void ui_draw_grid( struct PERPIX_GRID* grid ) {
 
          retroflat_rect(
             NULL,
-            grid_px_at( grid, p_px, x_iter, y_iter ),
+            grid_px,
             UI_GRID_X + (x_iter * (g_ui_zoom + 1)),
             UI_GRID_Y + (y_iter * (g_ui_zoom + 1)),
             g_ui_zoom, g_ui_zoom,
@@ -100,8 +115,40 @@ void ui_draw_grid( struct PERPIX_GRID* grid ) {
    }
 }
 
+void ui_draw_layer_icons( struct PERPIX_GRID_PACK* grid_pack ) {
+   uint32_t grid_y_iter = UI_GRID_ICON_Y,
+      px_x = 0,
+      px_y = 0,
+      layer_idx = 0;
+   uint8_t* p_px = NULL;
+   uint8_t grid_px = 0;
+   struct PERPIX_GRID* grid = NULL;
+
+   for( layer_idx = 0 ; grid_pack->count > layer_idx ; layer_idx++ ) {
+      grid = grid_get_layer_p( grid_pack, layer_idx );
+      p_px = grid_px( grid );
+      for( px_y = 0 ; grid->h > px_y ; px_y++ ) {
+         for( px_x = 0 ; grid->w > px_x ; px_x++ ) {
+
+            grid_px = grid_px_at( grid, p_px, px_x, px_y );
+
+            grid_px &= ~PERPIX_MASK_PX_TRANS;
+            if( 16 <= grid_px ) {
+               grid_px = 15;
+            }
+
+            retroflat_px( NULL, grid_px,
+               UI_GRID_ICON_X + px_x, grid_y_iter + px_y, 0 );
+         }
+      }
+      grid_y_iter += 64;
+   }
+}
+
 void ui_scale_zoom( uint16_t w, uint16_t h, struct PERPIX_GRID* grid ) {
-   g_ui_zoom = (h - (2 * UI_GRID_Y)) / grid->h;
+   if( NULL != grid && 0 < grid->h ) {
+      g_ui_zoom = (h - (2 * UI_GRID_Y)) / grid->h;
+   }
 }
 
 void ui_click_px(

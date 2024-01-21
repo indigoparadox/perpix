@@ -16,24 +16,50 @@
 MPLUG_EXPORT MERROR_RETVAL ico_read_entry(
    struct PERPIX_PLUG_ENV* plug_env
 ) {
+   MERROR_RETVAL retval = MERROR_OK;
    size_t icoentry_offset = 
       ICO_FILE_HEADER_SZ + (plug_env->layer_idx * ICO_ENTRY_HEADER_SZ);
    uint32_t bmp_offset = 0;
+   uint32_t bmp_sz = 0;
+   uint16_t bmp_bpp = 0;
 
    bmp_offset = perpix_read_lsbf_32( plug_env->buf,
       icoentry_offset + ICOENTRY_OFFSET_BMP_OFFSET );
-   /* ico_entry->bmp_sz = icotools_read_u32( plug_env->buf,
-      icoentry_offset + ICOENTRY_OFFSET_BMP_SZ ); */
+   bmp_sz = perpix_read_lsbf_32( plug_env->buf,
+      icoentry_offset + ICOENTRY_OFFSET_BMP_SZ );
+   if( bmp_offset + bmp_sz > plug_env->buf_sz ) {
+      error_printf(
+         "bitmap data offset is beyond file ending! (" UPRINTF_U32_FMT
+         " bytes at " UPRINTF_U32_FMT ", beyond " SIZE_T_FMT " bytes)",
+         bmp_sz, bmp_offset, plug_env->buf_sz );
+      retval = MERROR_OVERFLOW;
+      goto cleanup;
+   }
+
+   bmp_bpp = perpix_read_lsbf_16( plug_env->buf,
+      icoentry_offset + ICOENTRY_OFFSET_BPP );
+   if( 8 < bmp_bpp ) {
+      error_printf( "bitmap bpp is too high: %u", bmp_bpp );
+      retval = MERROR_OVERFLOW;
+      goto cleanup;
+   }
+
+   debug_printf( 1,
+      "bitmap data is located at: %u bytes, %u bytes long",
+      bmp_offset, bmp_sz );
 
    plug_env->buf = &(plug_env->buf[bmp_offset]);
+   plug_env->buf_sz = bmp_sz;
 
-   /* TODO: Base this on ICOENTRY_OFFSET_BMP_SZ. */
-   plug_env->buf_sz = plug_env->buf_sz - bmp_offset;
+cleanup:
+   return retval;
 }
 
+/*
 MPLUG_EXPORT MERROR_RETVAL ico_layers( struct PERPIX_PLUG_ENV* plug_env ) {
    return perpix_read_lsbf_16( plug_env->buf, 4 );
 }
+*/
 
 #if 0
 MPLUG_EXPORT MERROR_RETVAL ico_layer_sz( struct PERPIX_PLUG_ENV* plug_env ) {
@@ -71,11 +97,10 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
    MERROR_RETVAL retval = MERROR_OK;
    struct PERPIX_PLUG_ENV bmp_env;
    mplug_mod_t mod_exe = NULL;
-   uint32_t bmp_offset = 0; /* TODO */
    uint16_t ico_field_res = 0,
       ico_field_type = 0,
       ico_field_num_imgs = 0;
-   uint32_t i = 0;
+   struct PERPIX_GRID* p_grid = NULL;
 
    ico_field_res = perpix_read_lsbf_16( plug_env->buf, 0 );
    if( 0 != ico_field_res ) {
@@ -92,11 +117,14 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
    }
 
    /* Figure out the number of layers remaining. */
-   ico_field_num_imgs = ico_layers( plug_env );
-   debug_printf( 3, "found %u icons in file...", ico_field_num_imgs );
+   ico_field_num_imgs = perpix_read_lsbf_16( plug_env->buf, 4 );
+   debug_printf( 2, "found %u icons in file...", ico_field_num_imgs );
    if( ico_field_num_imgs > plug_env->layer_idx + 1 ) {
+      debug_printf( 2, "processing layer: %u, more to follow...",
+         plug_env->layer_idx );
       plug_env->flags |= PERPIX_PLUG_FLAG_MORE_LAYERS;
    } else {
+      debug_printf( 2, "processing final layer: %u", plug_env->layer_idx );
       plug_env->flags &= ~PERPIX_PLUG_FLAG_MORE_LAYERS;
    }
 
@@ -108,7 +136,8 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
    memcpy( &bmp_env, plug_env, sizeof( struct PERPIX_PLUG_ENV ) );
 
    /* Get bitmap offset, etc from ICO entry. */
-   ico_read_entry( &bmp_env );
+   retval = ico_read_entry( &bmp_env );
+   maug_cleanup_if_not_ok();
 
    /* Pass icon XOR mask to bitmap reader. */
    retval = mplug_call(
@@ -125,16 +154,29 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
    }
 
    /* This isn't the test pass, so read the image. */
-   debug_printf( 2, "loading layer " UPRINTF_U32_FMT " pixels...",
+   p_grid = grid_get_layer_p( bmp_env.grid_pack, bmp_env.layer_idx );
+   debug_printf( 2, "reading layer " UPRINTF_U32_FMT " palette data...",
       bmp_env.layer_idx );
-   bmp_env.buf = &(bmp_env.buf[40 +
-      (bmp_env.grid_pack->layers[bmp_env.layer_idx].palette_ncolors * 4)]);
+   bmp_env.buf = &(bmp_env.buf[40]);
+   retval = mplug_call(
+      mod_exe, "bmp_read_palette", &bmp_env, sizeof( bmp_env ) );
+   if( MERROR_OK != retval ) {
+      error_printf( "plugin returned error: %u", retval );
+      goto cleanup;
+   }
+
+   p_grid = grid_get_layer_p( bmp_env.grid_pack, bmp_env.layer_idx );
+   bmp_env.buf = &(bmp_env.buf[p_grid->palette_ncolors * 4]);
+   debug_printf( 2, "reading layer " UPRINTF_U32_FMT " pixel data...",
+      bmp_env.layer_idx );
    retval = mplug_call(
       mod_exe, "bmp_read_px", &bmp_env, sizeof( bmp_env ) );
    if( MERROR_OK != retval ) {
       error_printf( "plugin returned error: %u", retval );
       goto cleanup;
    }
+
+   debug_printf( 2, "layer load completed successfully!" );
 
 cleanup:
 
