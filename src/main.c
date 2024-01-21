@@ -15,15 +15,24 @@ MERROR_RETVAL perpix_on_resize( uint16_t new_w, uint16_t new_h, void* data ) {
 
    /* Resize the virtual buffer and redraw the UI. */
 
+   debug_printf( 1, "resize event triggered..." );
+
    retroflat_resize_v();
 
    maug_mlock( data_p->grid_pack_h, grid_pack )
    maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
+
    grid = grid_get_layer_p( grid_pack, data_p->layer_idx );
+   if( NULL == grid ) {
+      error_printf( "coult not get grid to resize!" );
+      retval = MERROR_ALLOC;
+      goto cleanup;
+   }
+   
    ui_scale_zoom( new_w, new_h, grid );
    maug_munlock( data_p->grid_pack_h, grid_pack )
 
-   data_p->flags |= PERPIX_FLAG_REDRAW_UI;
+   data_p->redraws += 3; /* TODO: Why do we need to do multiple redraws? */
 
 cleanup:
    return retval;
@@ -169,7 +178,9 @@ void perpix_loop( struct PERPIX_DATA* data ) {
    maug_mlock( data->grid_pack_h, grid_pack );
    maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
 
-   if( PERPIX_FLAG_REDRAW_UI == (data->flags & PERPIX_FLAG_REDRAW_UI) ) {
+   if( 0 < data->redraws ) {
+      debug_printf( 2, SIZE_T_FMT " redraws...", data->redraws );
+
       retroflat_rect(
          NULL, RETROFLAT_COLOR_BLACK, 0, 0,
          retroflat_screen_w(), retroflat_screen_h(),
@@ -178,6 +189,11 @@ void perpix_loop( struct PERPIX_DATA* data ) {
       debug_printf( 1, "redrawing UI (layer %u)...", data->layer_idx );
 
       grid = grid_get_layer_p( grid_pack, data->layer_idx );
+      if( NULL == grid ) {
+         error_printf( "no grid to redraw!" );
+         retval = MERROR_ALLOC;
+         goto cleanup;
+      }
 
       ui_draw_palette( grid );
 
@@ -185,7 +201,7 @@ void perpix_loop( struct PERPIX_DATA* data ) {
 
       ui_draw_layer_icons( grid_pack );
 
-      data->flags &= ~PERPIX_FLAG_REDRAW_UI;
+      data->redraws--;
    }
 
 cleanup:
@@ -263,7 +279,7 @@ int main( int argc, char** argv ) {
 
    /* Setup data. */
    retroflat_set_proc_resize( perpix_on_resize, data );
-   data->flags |= PERPIX_FLAG_REDRAW_UI;
+   data->redraws++;
 
    /* === Main Loop === */
 
