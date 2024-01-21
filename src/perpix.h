@@ -9,8 +9,6 @@
 #  include <retrogui.h>
 #endif /* !PERPIX_PLUGIN F*/
 
-#define PERPIX_FLAG_REDRAW_UI 0x01
-
 #define PERPIX_MASK_PX_TRANS 0x80
 
 /**
@@ -68,6 +66,7 @@ struct PERPIX_GRID_PACK {
 struct PERPIX_DATA {
    uint8_t init;
    uint8_t flags;
+   size_t redraws;
    uint8_t fg_idx;
    uint8_t bg_idx;
    uint32_t layer_idx;
