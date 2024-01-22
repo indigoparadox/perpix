@@ -27,9 +27,17 @@ MERROR_RETVAL ui_handle_input_queue( struct PERPIX_DATA* data ) {
          grid = grid_get_layer_p( grid_pack, data->layer_idx );
          if( UI_GRID_X < input_evt.mouse_x ) {
             ui_click_px( data, grid, input_evt.mouse_x, input_evt.mouse_y );
-         } else if( UI_GRID_Y < input_evt.mouse_y ) {
+         } else if(
+            UI_GRID_Y < input_evt.mouse_y &&
+            UI_GRID_Y + ui_palette_height( grid ) > input_evt.mouse_y
+         ) {
             ui_click_palette(
                data, grid, input_evt.mouse_x, input_evt.mouse_y );
+         } else if(
+            UI_GRID_Y + ui_palette_height( grid ) < input_evt.mouse_y
+         ) {
+            ui_click_layer_icons(
+               data, grid_pack, input_evt.mouse_x, input_evt.mouse_y );
          }
          
          maug_munlock( data->grid_pack_h, grid_pack );
@@ -115,14 +123,21 @@ void ui_draw_grid( struct PERPIX_GRID* grid ) {
    }
 }
 
-void ui_draw_layer_icons( struct PERPIX_GRID_PACK* grid_pack ) {
-   uint32_t grid_y_iter = UI_GRID_ICON_Y,
+void ui_draw_layer_icons(
+   struct PERPIX_DATA* data, struct PERPIX_GRID_PACK* grid_pack
+) {
+   uint32_t grid_y_iter = 0,
       px_x = 0,
       px_y = 0,
       layer_idx = 0;
    uint8_t* p_px = NULL;
    uint8_t grid_px = 0;
    struct PERPIX_GRID* grid = NULL;
+
+   /* Set initial Y at the end of the palette for current grid. */
+   grid = grid_get_layer_p( grid_pack, data->layer_idx );
+   grid_y_iter =
+      UI_PALETTE_Y + ui_palette_height( grid ) + UI_GRID_ICON_Y_BUFFER;
 
    for( layer_idx = 0 ; grid_pack->count > layer_idx ; layer_idx++ ) {
       grid = grid_get_layer_p( grid_pack, layer_idx );
@@ -141,7 +156,7 @@ void ui_draw_layer_icons( struct PERPIX_GRID_PACK* grid_pack ) {
                UI_GRID_ICON_X + px_x, grid_y_iter + px_y, 0 );
          }
       }
-      grid_y_iter += 64;
+      grid_y_iter += grid->h + UI_GRID_ICON_Y_BUFFER;
    }
 }
 
@@ -198,4 +213,32 @@ void ui_click_palette(
       }
    }
 }
+
+void ui_click_layer_icons(
+   struct PERPIX_DATA* data, struct PERPIX_GRID_PACK* grid_pack,
+   uint16_t mouse_x, uint16_t mouse_y
+) {
+   uint32_t grid_y_iter = 0,
+      layer_idx = 0;
+   struct PERPIX_GRID* grid = NULL;
+
+   /* Set initial Y at the end of the current grid's palette. */
+   grid = grid_get_layer_p( grid_pack, data->layer_idx );
+   grid_y_iter =
+      UI_PALETTE_Y + ui_palette_height( grid ) + UI_GRID_ICON_Y_BUFFER;
+
+   for( layer_idx = 0 ; grid_pack->count > layer_idx ; layer_idx++ ) {
+      grid = grid_get_layer_p( grid_pack, layer_idx );
+      grid_y_iter += grid->h + UI_GRID_ICON_Y_BUFFER;
+
+      if( mouse_y < grid_y_iter ) {
+         data->layer_idx = layer_idx;
+         ui_inc_redraws( data );
+         ui_scale_zoom( 
+            retroflat_screen_w(), retroflat_screen_h(), grid );
+         break;
+      }  
+   }
+}
+
 
