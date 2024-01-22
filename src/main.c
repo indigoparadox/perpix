@@ -32,7 +32,7 @@ MERROR_RETVAL perpix_on_resize( uint16_t new_w, uint16_t new_h, void* data ) {
    ui_scale_zoom( new_w, new_h, grid );
    maug_munlock( data_p->grid_pack_h, grid_pack )
 
-   data_p->redraws += 3; /* TODO: Why do we need to do multiple redraws? */
+   ui_inc_redraws( data_p );
 
 cleanup:
    return retval;
@@ -179,7 +179,7 @@ void perpix_loop( struct PERPIX_DATA* data ) {
    maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
 
    if( 0 < data->redraws ) {
-      debug_printf( 2, SIZE_T_FMT " redraws...", data->redraws );
+      debug_printf( 2, UPRINTF_S32_FMT " redraws...", data->redraws );
 
       retroflat_rect(
          NULL, RETROFLAT_COLOR_BLACK, 0, 0,
@@ -199,7 +199,7 @@ void perpix_loop( struct PERPIX_DATA* data ) {
 
       ui_draw_grid( grid );
 
-      ui_draw_layer_icons( grid_pack );
+      ui_draw_layer_icons( data, grid_pack );
 
       data->redraws--;
    }
@@ -279,7 +279,7 @@ int main( int argc, char** argv ) {
 
    /* Setup data. */
    retroflat_set_proc_resize( perpix_on_resize, data );
-   data->redraws++;
+   ui_inc_redraws( data );
 
    /* === Main Loop === */
 

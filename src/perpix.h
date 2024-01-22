@@ -66,9 +66,9 @@ struct PERPIX_GRID_PACK {
 struct PERPIX_DATA {
    uint8_t init;
    uint8_t flags;
-   size_t redraws;
    uint8_t fg_idx;
    uint8_t bg_idx;
+   int16_t redraws;
    uint32_t layer_idx;
    MAUG_MHANDLE grid_pack_h;
 };
