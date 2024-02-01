@@ -5,9 +5,9 @@
 #include <maug.h>
 #ifndef PERPIX_PLUGIN
 #  include <retroflt.h>
-#  include <retrofil.h>
 #  include <retrogui.h>
 #endif /* !PERPIX_PLUGIN F*/
+#include <mfile.h>
 
 #define PERPIX_MASK_PX_TRANS 0x80
 
@@ -78,11 +78,12 @@ struct PERPIX_PLUG_ENV {
    uint8_t flags;
    struct PERPIX_GRID_PACK* grid_pack;
    struct PERPIX_GRID* test_grid;
-   const uint8_t* buf;
-   size_t buf_sz;
    uint16_t bpp;
    uint32_t layer_idx;
    struct PERPIX_GRID layer_header;
+   uint32_t file_offset;
+   uint32_t file_sz;
+   mfile_t file_in;
 };
 
 #include "ui.h"
