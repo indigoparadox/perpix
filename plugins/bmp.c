@@ -1,22 +1,10 @@
 
+#define MFMT_C
 #include <perpix.h>
 
 #define BMP_HEADER_SZ 40
 
-#define BMPINFO_OFFSET_WIDTH 4
-#define BMPINFO_OFFSET_HEIGHT 8
-#define BMPINFO_OFFSET_COLOR_PLANES 12
-#define BMPINFO_OFFSET_BPP 14
-#define BMPINFO_OFFSET_CMP 16
-#define BMPINFO_OFFSET_SZ 20
-#define BMPINFO_OFFSET_HRES 24
-#define BMPINFO_OFFSET_VRES 28
-#define BMPINFO_OFFSET_PAL_SZ 32
-#define BMPINFO_OFFSET_IMP_COLORS 36
-
 #define BMP_OPTS_FLAG_UPSIDE_DOWN 0x01
-
-#define BMP_COMPRESSION_NONE (0)
 
 #if 0
 int32_t bmp_verify_opts( struct CONVERT_OPTIONS* o ) {
@@ -366,11 +354,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
 ) {
    MERROR_RETVAL retval = MERROR_OK;
    struct PERPIX_GRID* grid = NULL;
-   uint32_t bmp_w = 0,
-      bmp_h = 0,
-      bmp_ncolors = 0,
-      bmp_compression = 0,
-      hdr_sz = 0;
+   struct MFMT_STRUCT_BMPINFO header_bmp_info;
 
    debug_printf( 3, "bmp plugin started header (%s pass)...",
       NULL == plug_env->test_grid ? "pixel" : "info");
@@ -390,77 +374,51 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
       grid = grid_get_layer_p( plug_env->grid_pack, plug_env->layer_idx );
    }
 
-   /* Read the bitmap image header. */
-   mfile_u32read_lsbf_at( &(plug_env->file_in), &(hdr_sz),
-      plug_env->file_offset );
-   if( 40 != hdr_sz ) { /* Windows BMP. */
-      error_printf( "invalid header size: %u", hdr_sz );
-      retval = MERROR_FILE;
-      goto cleanup;
-   }
-   debug_printf( 2, "bitmap header is %u bytes", hdr_sz );
+   header_bmp_info.sz = 40;
 
-   /* Read bitmap image dimensions. */
-   mfile_u32read_lsbf_at( &(plug_env->file_in), &(bmp_w),
-      plug_env->file_offset + 4 );
-   mfile_u32read_lsbf_at( &(plug_env->file_in), &(bmp_h),
-      plug_env->file_offset + 8 );
-   if( 0 > grid->h ) {
-      /* Note that the bitmap is upside down! */
-      debug_printf( 2, "bitmap is upside down: " UPRINTF_S32_FMT, bmp_h );
-      plug_env->flags |= BMP_OPTS_FLAG_UPSIDE_DOWN;
-      bmp_h *= -1;
-   }
+   retval = mfmt_read_bmp_header(
+      (struct MFMT_STRUCT*)&header_bmp_info, &(plug_env->file_in),
+      plug_env->file_offset, plug_env->file_sz );
+   maug_cleanup_if_not_ok();
 
+   plug_env->bpp = header_bmp_info.bpp;
    if( NULL != plug_env->test_grid ) {
       /* We're getting dimensions, so pass them back using the grid. */
-      grid->w = bmp_w;
-      grid->h = bmp_h;
+      grid->palette_ncolors = header_bmp_info.palette_ncolors;
    } else {
       /* We've been passed a valid grid, so make sure the image fits! */
-      if( bmp_w != grid->w /* XXX || bmp_h != grid->h */ ) {
-         error_printf( "passed grid has incompatible size! (has %u x %u, "
-            "needs %u x %u)", grid->w, grid->h, bmp_w, bmp_h );
-         retval = MERROR_OVERFLOW;
-         goto cleanup;
-      }
-   }
-
-   /* Check that we're a palettized image. */
-   mfile_u16read_lsbf_at( &(plug_env->file_in), &(plug_env->bpp),
-      plug_env->file_offset + 14 );
-   if( 8 < plug_env->bpp ) {
-      error_printf( "invalid bitmap bpp: %u", plug_env->bpp );
-      retval = MERROR_FILE;
-      goto cleanup;
-   }
-
-   /* Make sure there's no weird compression. */
-   mfile_u32read_lsbf_at( &(plug_env->file_in), &(bmp_compression),
-      plug_env->file_offset + 16 );
-   if( BMP_COMPRESSION_NONE != bmp_compression ) {
-      error_printf( "invalid bitmap compression: %u", bmp_compression );
-      retval = MERROR_FILE;
-      goto cleanup;
-   }
-
-   mfile_u32read_lsbf_at( &(plug_env->file_in), &(bmp_ncolors),
-      plug_env->file_offset + 32 );
-   if( NULL != plug_env->test_grid ) {
-      /* We're getting dimensions, so pass them back using the grid. */
-      grid->palette_ncolors = bmp_ncolors;
-   } else {
-      /* We've been passed a valid grid, so make sure the image fits! */
-      if( bmp_ncolors != grid->palette_ncolors ) {
+      if( header_bmp_info.palette_ncolors != grid->palette_ncolors ) {
          error_printf( "passed grid has incompatible colors! (has %u, "
-            "needs %u)", grid->palette_ncolors, bmp_ncolors );
+            "needs %u)",
+            grid->palette_ncolors, header_bmp_info.palette_ncolors );
          retval = MERROR_OVERFLOW;
          goto cleanup;
       }
    }
 
-   debug_printf( 2, "bitmap is %d x %d, %u bpp (palette has %u colors)",
-      grid->w, grid->h, plug_env->bpp, grid->palette_ncolors );
+   if( 0 > header_bmp_info.height ) {
+      /* Note that the bitmap is upside down! */
+      debug_printf( 2, "bitmap is upside down: " UPRINTF_S32_FMT,
+         header_bmp_info.height );
+      plug_env->flags |= BMP_OPTS_FLAG_UPSIDE_DOWN;
+      header_bmp_info.height *= -1;
+   }
+
+   if( NULL != plug_env->test_grid ) {
+      /* We're getting dimensions, so pass them back using the grid. */
+      grid->w = header_bmp_info.width;
+      grid->h = header_bmp_info.height;
+   } else {
+      /* We've been passed a valid grid, so make sure the image fits! */
+      if( header_bmp_info.width != grid->w /* XXX || bmp_h != grid->h */ ) {
+         error_printf( "passed grid has incompatible size! (has %u x %u, "
+            "needs %u x %u)",
+            grid->w, grid->h,
+            header_bmp_info.width, header_bmp_info.height );
+         retval = MERROR_OVERFLOW;
+         goto cleanup;
+      }
+   }
 
 cleanup:
 
@@ -471,9 +429,9 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
    struct PERPIX_PLUG_ENV* plug_env
 ) {
    MERROR_RETVAL retval = MERROR_OK;
-   size_t i = 0;
    uint32_t* p_palette = NULL;
    struct PERPIX_GRID* grid = NULL;
+   struct MFMT_STRUCT_BMPINFO header_bmp_info;
 
    if( plug_env->layer_idx >= plug_env->grid_pack->count ) {
       error_printf( "invalid grid pack layer selected: " UPRINTF_U32_FMT,
@@ -489,18 +447,15 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
 
    p_palette = grid_palette( grid );
 
-   for( i = 0 ; grid->palette_ncolors > i ; i++ ) {
-      /* if( i * 4 > plug_env->buf_sz ) {
-         error_printf( "palette overflow!" );
-         retval = MERROR_OVERFLOW;
-         goto cleanup;
-      } */
-      mfile_u32read_lsbf_at( &(plug_env->file_in), &(p_palette[i]),
-         plug_env->file_offset + (i * 4) );
-      debug_printf( 1,
-         "set palette entry " SIZE_T_FMT " to " UPRINTF_X32_FMT,
-         i, p_palette[i] );
-   }
+   maug_mzero( &header_bmp_info, 40 );
+   header_bmp_info.sz = 40;
+   header_bmp_info.palette_ncolors = grid->palette_ncolors;
+
+   retval = mfmt_read_bmp_palette(
+      (struct MFMT_STRUCT*)&header_bmp_info,
+      p_palette, grid->palette_ncolors * 4,
+      &(plug_env->file_in), plug_env->file_offset, plug_env->file_sz );
+   maug_cleanup_if_not_ok();
 
 cleanup:
    return retval;
@@ -508,16 +463,9 @@ cleanup:
 
 MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
    MERROR_RETVAL retval = MERROR_OK;
-   uint32_t x = 0,
-      y = 0,
-      i = 0,
-      byte_idx = 0,
-      bit_idx = 0;
    struct PERPIX_GRID* grid = NULL;
    uint8_t* p_grid_px = NULL;
-   uint8_t byte_buffer = 0,
-      byte_mask = 0,
-      pixel_buffer = 0;
+   struct MFMT_STRUCT_BMPINFO header_bmp_info;
 
    if( plug_env->layer_idx >= plug_env->grid_pack->count ) {
       error_printf( "invalid grid pack layer selected: " UPRINTF_U32_FMT,
@@ -533,6 +481,13 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
    /* Figure out where we're writing data to. */
    p_grid_px = grid_px( grid );
 
+   /* Setup header for mfmt. */
+   maug_mzero( &header_bmp_info, sizeof( struct MFMT_STRUCT_BMPINFO ) );
+   header_bmp_info.sz = 40;
+   header_bmp_info.width = grid->w;
+   header_bmp_info.height = grid->h;
+   header_bmp_info.bpp = plug_env->bpp;
+
    /* TODO: Make sure grid is big enough! */
 
    /*
@@ -542,72 +497,10 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
 
    /* Read the bitmap data. */
 
-   /* Grid starts from top, bitmap starts from bottom. */
-   /* TODO: Use upside-down flag! */
-   y = grid->h - 1;
-   while( grid->h > y ) {
-      /* Each iteration is a single, fresh pixel. */
-      pixel_buffer = 0;
-
-      debug_printf( 0, "bmp: byte_idx %u, bit %u (%u), row %d, col %d (%u)",
-         byte_idx, bit_idx, plug_env->bpp, y, x, (y * grid->w) + x );
-
-      if( 0 == bit_idx ) {
-         /* Move on to a new byte. */
-         mfile_cread_at( &(plug_env->file_in), &(byte_buffer),
-            plug_env->file_offset + byte_idx );
-         byte_idx++;
-
-         /* Start at 8 bits from the right (0 from the left). */
-         bit_idx = 8;
-
-         /* Build a bitwise mask based on the bitmap's BPP. */
-         byte_mask = 0;
-         for( i = 0 ; plug_env->bpp > i ; i++ ) {
-            byte_mask >>= 1;
-            byte_mask |= 0x80;
-         }
-      }
-
-      /* TODO: Bounds checking! */
-      /* assert( (y * sz_x) + x < (buf_sz * (8 / grid->bpp)) ); */
-
-      /* Use the byte mask to place the bits for this pixel in the
-       * pixel buffer.
-       */
-      pixel_buffer |= byte_buffer & byte_mask;
-      
-      /* Shift the pixel buffer so the index lines up at the first bit. */
-      pixel_buffer >>= 
-         /* Index starts from the right, so the current bits from the left
-          * minus 1 * bpp.
-          */
-         (bit_idx - plug_env->bpp);
-      debug_printf( 0, "byte_mask: 0x%02x, bit_idx: %u, pixel_buffer: 0x%02x",
-         byte_mask, bit_idx, pixel_buffer );
-
-      /* Place the pixel buffer at the X/Y in the grid. */
-      p_grid_px[(y * grid->w) + x] = pixel_buffer;
-
-      /* Increment the bits position byte mask by the bpp so it's pointing
-       * to the next pixel in the bitmap for the next go around.
-       */
-      byte_mask >>= plug_env->bpp;
-      bit_idx -= plug_env->bpp;
-      assert( 8 > bit_idx );
-
-      /* Move to the next pixel. */
-      x++;
-      if( x >= grid->w ) {
-         /* Move to the next row. */
-         y--;
-         x = 0;
-         while( byte_idx % 4 != 0 ) {
-            byte_idx++;
-         }
-         /* Get past the padding. */
-      }
-   }
+   retval = mfmt_read_bmp_px(
+      (struct MFMT_STRUCT*)&header_bmp_info, p_grid_px, 0 /* TODO */,
+      &(plug_env->file_in), plug_env->file_offset, plug_env->file_sz );
+   maug_cleanup_if_not_ok();
 
 cleanup:
    return retval;

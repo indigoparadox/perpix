@@ -8,6 +8,7 @@
 #  include <retrogui.h>
 #endif /* !PERPIX_PLUGIN F*/
 #include <mfile.h>
+#include <mfmt.h>
 
 #define PERPIX_MASK_PX_TRANS 0x80
 
