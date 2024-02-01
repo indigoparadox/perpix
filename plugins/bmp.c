@@ -365,12 +365,12 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    struct PERPIX_PLUG_ENV* plug_env
 ) {
    MERROR_RETVAL retval = MERROR_OK;
-   int bmp_compression = 0,
-      hdr_sz = 0;
    struct PERPIX_GRID* grid = NULL;
    uint32_t bmp_w = 0,
-      bmp_h = 0;
-   uint32_t bmp_ncolors = 0;
+      bmp_h = 0,
+      bmp_ncolors = 0,
+      bmp_compression = 0,
+      hdr_sz = 0;
 
    debug_printf( 3, "bmp plugin started header (%s pass)...",
       NULL == plug_env->test_grid ? "pixel" : "info");
@@ -391,7 +391,8 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    }
 
    /* Read the bitmap image header. */
-   hdr_sz = perpix_read_lsbf_32( plug_env->buf, 0 );
+   mfile_u32read_lsbf_at( &(plug_env->file_in), &(hdr_sz),
+      plug_env->file_offset );
    if( 40 != hdr_sz ) { /* Windows BMP. */
       error_printf( "invalid header size: %u", hdr_sz );
       retval = MERROR_FILE;
@@ -400,8 +401,10 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    debug_printf( 2, "bitmap header is %u bytes", hdr_sz );
 
    /* Read bitmap image dimensions. */
-   bmp_w = perpix_read_lsbf_32( plug_env->buf, 4 );
-   bmp_h = perpix_read_lsbf_32( plug_env->buf, 8 );
+   mfile_u32read_lsbf_at( &(plug_env->file_in), &(bmp_w),
+      plug_env->file_offset + 4 );
+   mfile_u32read_lsbf_at( &(plug_env->file_in), &(bmp_h),
+      plug_env->file_offset + 8 );
    if( 0 > grid->h ) {
       /* Note that the bitmap is upside down! */
       debug_printf( 2, "bitmap is upside down: " UPRINTF_S32_FMT, bmp_h );
@@ -424,7 +427,8 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    }
 
    /* Check that we're a palettized image. */
-   plug_env->bpp = perpix_read_lsbf_16( plug_env->buf, 14 );
+   mfile_u16read_lsbf_at( &(plug_env->file_in), &(plug_env->bpp),
+      plug_env->file_offset + 14 );
    if( 8 < plug_env->bpp ) {
       error_printf( "invalid bitmap bpp: %u", plug_env->bpp );
       retval = MERROR_FILE;
@@ -432,14 +436,16 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    }
 
    /* Make sure there's no weird compression. */
-   bmp_compression = perpix_read_lsbf_16( plug_env->buf, 16 );
+   mfile_u32read_lsbf_at( &(plug_env->file_in), &(bmp_compression),
+      plug_env->file_offset + 16 );
    if( BMP_COMPRESSION_NONE != bmp_compression ) {
       error_printf( "invalid bitmap compression: %u", bmp_compression );
       retval = MERROR_FILE;
       goto cleanup;
    }
 
-   bmp_ncolors = perpix_read_lsbf_16( plug_env->buf, 32 );
+   mfile_u32read_lsbf_at( &(plug_env->file_in), &(bmp_ncolors),
+      plug_env->file_offset + 32 );
    if( NULL != plug_env->test_grid ) {
       /* We're getting dimensions, so pass them back using the grid. */
       grid->palette_ncolors = bmp_ncolors;
@@ -484,13 +490,15 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
    p_palette = grid_palette( grid );
 
    for( i = 0 ; grid->palette_ncolors > i ; i++ ) {
-      if( i * 4 > plug_env->buf_sz ) {
+      /* if( i * 4 > plug_env->buf_sz ) {
          error_printf( "palette overflow!" );
          retval = MERROR_OVERFLOW;
          goto cleanup;
-      }
-      p_palette[i] = perpix_read_lsbf_32( plug_env->buf, i * 4 );
-      debug_printf( 1, "set palette entry " SIZE_T_FMT " to " UPRINTF_X32_FMT,
+      } */
+      mfile_u32read_lsbf_at( &(plug_env->file_in), &(p_palette[i]),
+         plug_env->file_offset + (i * 4) );
+      debug_printf( 1,
+         "set palette entry " SIZE_T_FMT " to " UPRINTF_X32_FMT,
          i, p_palette[i] );
    }
 
@@ -546,7 +554,8 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
 
       if( 0 == bit_idx ) {
          /* Move on to a new byte. */
-         byte_buffer = plug_env->buf[byte_idx];
+         mfile_cread_at( &(plug_env->file_in), &(byte_buffer),
+            plug_env->file_offset + byte_idx );
          byte_idx++;
 
          /* Start at 8 bits from the right (0 from the left). */
@@ -614,48 +623,57 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
    /* Bitmap *file* only has one layer. */
    uint32_t bmp_data_offset = 0;
    size_t bmp_file_sz = 0;
+   char bm[2];
 
    if(
       NULL != plug_env->grid_pack && (
-         0 == plug_env->grid_pack->version || 1 < plug_env->grid_pack->version
+         0 == plug_env->grid_pack->version ||
+         1 < plug_env->grid_pack->version
       )
    ) {
-      error_printf( "don't know how to write grid version: " UPRINTF_U32_FMT,
-         plug_env->grid_pack->version );
+      error_printf( "don't know how to write grid version: "
+         UPRINTF_U32_FMT, plug_env->grid_pack->version );
       retval = MERROR_FILE;
       goto cleanup;
    }
 
-   debug_printf( 3, "bmp plugin started reading..." );
+   debug_printf( 3, "started reading at file offset " UPRINTF_U32_FMT "...",
+      plug_env->file_offset );
 
    memcpy( &hdr_env, plug_env, sizeof( struct PERPIX_PLUG_ENV ) );
 
    /* Read the bitmap file header. */
-   if( 0x42 != plug_env->buf[0] || 0x4d != plug_env->buf[1] ) {
+   mfile_cread_at( &(plug_env->file_in), &(bm[0]),
+      plug_env->file_offset + 0 );
+   mfile_cread_at( &(plug_env->file_in), &(bm[1]),
+      plug_env->file_offset + 1 );
+   if( 0x42 != bm[0] || 0x4d != bm[1] ) {
       error_printf(
          "invalid magic number: 0x%02x 0x%02x (looking for 0x%02x 0x%02x)",
-         plug_env->buf[0], plug_env->buf[1], 0x42, 0x4d );
+         bm[0], bm[1], 0x42, 0x4d );
       retval = MERROR_FILE;
       goto cleanup;
    }
 
-   bmp_file_sz = perpix_read_lsbf_32( plug_env->buf, 2 );
-   if( bmp_file_sz != plug_env->buf_sz ) {
+   mfile_u32read_lsbf_at( &(plug_env->file_in), &(plug_env->file_sz),
+      plug_env->file_offset + 2 );
+   if( bmp_file_sz != mfile_get_sz( &(plug_env->file_in) ) ) {
       error_printf(
          "bitmap size field " SIZE_T_FMT " does not match buffer size: "
-         SIZE_T_FMT, bmp_file_sz, plug_env->buf_sz );
+         SIZE_T_FMT,
+         bmp_file_sz, mfile_get_sz( &(plug_env->file_in) ) );
       retval = MERROR_FILE;
       goto cleanup;
    }
+   debug_printf( 1, "buffer size " UPRINTF_U32_FMT ", as expected...",
+      plug_env->file_sz );
 
-   debug_printf( 1, "buffer size " SIZE_T_FMT ", as expected...",
-      plug_env->buf_sz );
-
-   bmp_data_offset = perpix_read_lsbf_32( plug_env->buf, 10 );
+   mfile_u32read_lsbf_at( &(plug_env->file_in), &bmp_data_offset,
+      plug_env->file_offset + 10 );
    debug_printf( 2, "bitmap data starts at %u bytes", bmp_data_offset );
 
-   hdr_env.buf += 14; /* BMP -file- header size. */
-   hdr_env.buf_sz -= 14;
+   hdr_env.file_offset += 14; /* BMP -file- header size. */
+   hdr_env.file_sz -= 14;
    bmp_data_offset -= 14;
    retval = bmp_read_info_header( &hdr_env );
    maug_cleanup_if_not_ok();
@@ -686,14 +704,14 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
    }
 #endif
 
-   hdr_env.buf += 40; /* BMP -info- header size. */
-   hdr_env.buf_sz -= 40;
+   hdr_env.file_offset += 40; /* BMP -info- header size. */
+   hdr_env.file_sz -= 40;
    bmp_data_offset -= 40;
    retval = bmp_read_palette( &hdr_env );
    maug_cleanup_if_not_ok();
 
-   hdr_env.buf += bmp_data_offset;
-   hdr_env.buf_sz -= bmp_data_offset;
+   hdr_env.file_offset += bmp_data_offset;
+   hdr_env.file_sz -= bmp_data_offset;
    retval = bmp_read_px( &hdr_env );
    maug_cleanup_if_not_ok();
 

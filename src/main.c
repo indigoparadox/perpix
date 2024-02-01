@@ -1,7 +1,7 @@
 
 #define MAUG_C
 #define RETROFLT_C
-#define RETROFIL_C
+#define MFILE_C
 #include "perpix.h"
 
 char g_file_to_open[RETROFLAT_PATH_MAX];
@@ -38,8 +38,8 @@ cleanup:
    return retval;
 }
 
-MERROR_RETVAL perpix_read_file_bytes(
-   const char* plug_ext, uint8_t* in_file_bytes, size_t in_file_sz,
+MERROR_RETVAL perpix_read_file(
+   const char* plug_ext, mfile_t* file_in,
    MAUG_MHANDLE* p_grid_pack_h
 ) {
    MERROR_RETVAL retval = MERROR_OK;
@@ -59,9 +59,10 @@ MERROR_RETVAL perpix_read_file_bytes(
    do {
       plug_env.flags = PERPIX_PLUG_FLAG_HEADER_ONLY;
       plug_env.grid_pack = NULL;
-      plug_env.buf = in_file_bytes;
-      plug_env.buf_sz = in_file_sz;
       plug_env.test_grid = &test_grid;
+      plug_env.file_offset = 0;
+      plug_env.file_sz = mfile_get_sz( &(plug_env.file_in) );
+      memcpy( &(plug_env.file_in), file_in, sizeof( mfile_t ) );
 
       /* Call the plugin to fill out the header. */
       memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
@@ -122,25 +123,20 @@ MERROR_RETVAL perpix_open_file(
    const char* filename, MAUG_MHANDLE* p_grid_pack_h
 ) {
    MERROR_RETVAL retval = MERROR_OK;
-   MAUG_MHANDLE in_file_bytes_h = NULL;
-   uint8_t* in_file_bytes = NULL;
-   size_t in_file_sz = 0;
    size_t i_plug = 0;
+   mfile_t file_in;
 
    /* TODO: Create if NULL. */
    assert( NULL != *p_grid_pack_h );
 
    debug_printf( 3, "opening file: %s", filename );
-   retval = retrofil_open_mread( filename, &in_file_bytes_h, &in_file_sz );
+   retval = mfile_open_read( filename, &file_in );
    maug_cleanup_if_not_ok();
-
-   maug_mlock( in_file_bytes_h, in_file_bytes );
-   maug_cleanup_if_null_alloc( uint8_t*, in_file_bytes );
 
    /* Select a plugin based on the first one not to fail. */
    do {
-      retval = perpix_read_file_bytes(
-         gc_plug_exts[i_plug], in_file_bytes, in_file_sz, p_grid_pack_h );
+      retval = perpix_read_file(
+         gc_plug_exts[i_plug], &file_in, p_grid_pack_h );
       i_plug++;
    } while( i_plug < 2 && MERROR_OK != retval );
 
@@ -150,13 +146,7 @@ MERROR_RETVAL perpix_open_file(
 
 cleanup:
 
-   if( NULL != in_file_bytes ) {
-      maug_munlock( in_file_bytes_h, in_file_bytes );
-   }
-
-   if( NULL != in_file_bytes_h ) {
-      retrofil_close_mread( in_file_bytes, in_file_sz );
-   }
+   mfile_close( &file_in );
 
    return retval;
 }
