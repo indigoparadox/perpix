@@ -1,5 +1,6 @@
 
 #define MFMT_C
+#define MFILE_C
 #include <perpix.h>
 
 #define BMP_HEADER_SZ 40
@@ -515,7 +516,6 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
    struct PERPIX_PLUG_ENV hdr_env;
    /* Bitmap *file* only has one layer. */
    uint32_t bmp_data_offset = 0;
-   size_t bmp_file_sz = 0;
    char bm[2];
 
    if(
@@ -550,11 +550,11 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
 
    mfile_u32read_lsbf_at( &(plug_env->file_in), &(plug_env->file_sz),
       plug_env->file_offset + 2 );
-   if( bmp_file_sz != mfile_get_sz( &(plug_env->file_in) ) ) {
+   if( plug_env->file_sz != mfile_get_sz( &(plug_env->file_in) ) ) {
       error_printf(
-         "bitmap size field " SIZE_T_FMT " does not match buffer size: "
-         SIZE_T_FMT,
-         bmp_file_sz, mfile_get_sz( &(plug_env->file_in) ) );
+         "bitmap size field " UPRINTF_U32_FMT
+         " does not match buffer size: " SIZE_T_FMT,
+         plug_env->file_sz, mfile_get_sz( &(plug_env->file_in) ) );
       retval = MERROR_FILE;
       goto cleanup;
    }
