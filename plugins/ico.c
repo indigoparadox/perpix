@@ -183,6 +183,7 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
 
    p_grid = grid_get_layer_p( bmp_env.grid_pack, bmp_env.layer_idx );
    /* bmp_env.buf = &(bmp_env.buf[p_grid->palette_ncolors * 4]); */
+   /* TODO: Figure out why ICO parser messes up size. */
    bmp_env.file_offset += p_grid->palette_ncolors * 4;
    debug_printf( 2, "reading layer " UPRINTF_U32_FMT " pixel data...",
       bmp_env.layer_idx );
