@@ -85,6 +85,7 @@ struct PERPIX_PLUG_ENV {
    uint32_t file_offset;
    uint32_t file_sz;
    mfile_t file_in;
+   uint8_t mfmt_flags;
 };
 
 #include "ui.h"

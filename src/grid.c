@@ -82,6 +82,7 @@ MERROR_RETVAL grid_pack_add_layer(
 
    grid_new->version = 1;
    grid_new->sz = grid_new_sz;
+   grid_new->data_sz = w * h;
    grid_new->w = w;
    grid_new->h = h;
    grid_new->palette_ncolors = pal_ncolors;
