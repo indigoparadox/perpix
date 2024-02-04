@@ -62,6 +62,7 @@ MERROR_RETVAL perpix_read_file(
       plug_env.test_grid = &test_grid;
       plug_env.file_offset = 0;
       plug_env.file_sz = mfile_get_sz( &(plug_env.file_in) );
+      plug_env.mfmt_flags = 0;
       memcpy( &(plug_env.file_in), file_in, sizeof( mfile_t ) );
 
       /* Call the plugin to fill out the header. */

@@ -379,7 +379,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
 
    retval = mfmt_read_bmp_header(
       (struct MFMT_STRUCT*)&header_bmp_info, &(plug_env->file_in),
-      plug_env->file_offset, plug_env->file_sz );
+      plug_env->file_offset, plug_env->file_sz, &(plug_env->mfmt_flags) );
    maug_cleanup_if_not_ok();
 
    plug_env->bpp = header_bmp_info.bpp;
@@ -455,7 +455,8 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
    retval = mfmt_read_bmp_palette(
       (struct MFMT_STRUCT*)&header_bmp_info,
       p_palette, grid->palette_ncolors * 4,
-      &(plug_env->file_in), plug_env->file_offset, plug_env->file_sz );
+      &(plug_env->file_in), plug_env->file_offset, plug_env->file_sz,
+      plug_env->mfmt_flags );
    maug_cleanup_if_not_ok();
 
 cleanup:
@@ -487,6 +488,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
    header_bmp_info.sz = 40;
    header_bmp_info.width = grid->w;
    header_bmp_info.height = grid->h;
+   assert( 0 < header_bmp_info.height );
    header_bmp_info.bpp = plug_env->bpp;
 
    /* TODO: Make sure grid is big enough! */
@@ -499,8 +501,9 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
    /* Read the bitmap data. */
 
    retval = mfmt_read_bmp_px(
-      (struct MFMT_STRUCT*)&header_bmp_info, p_grid_px, 0 /* TODO */,
-      &(plug_env->file_in), plug_env->file_offset, plug_env->file_sz );
+      (struct MFMT_STRUCT*)&header_bmp_info, p_grid_px, grid->data_sz,
+      &(plug_env->file_in), plug_env->file_offset, plug_env->file_sz,
+      plug_env->mfmt_flags );
    maug_cleanup_if_not_ok();
 
 cleanup:
