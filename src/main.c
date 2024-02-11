@@ -1,7 +1,5 @@
 
 #define MAUG_C
-#define RETROFLT_C
-#define MFILE_C
 #include "perpix.h"
 
 char g_file_to_open[RETROFLAT_PATH_MAX];
@@ -43,17 +41,21 @@ MERROR_RETVAL perpix_read_file(
    MAUG_MHANDLE* p_grid_pack_h
 ) {
    MERROR_RETVAL retval = MERROR_OK;
+#ifndef MAUG_OS_DOS_REAL
    mplug_mod_t mod_exe = NULL;
+#endif /* !MAUG_OS_DOS_REAL */
    struct PERPIX_PLUG_ENV plug_env;
    char plugin_call_buf[RETROFLAT_PATH_MAX + 1];
    struct PERPIX_GRID test_grid;
    struct PERPIX_GRID_PACK* grid_pack = NULL;
 
+#ifndef MAUG_OS_DOS_REAL
    memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
    maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "./perpix_%s",
       plug_ext );
    retval = mplug_load( plugin_call_buf, &mod_exe );
    maug_cleanup_if_not_ok();
+#endif /* !MAUG_OS_DOS_REAL */
 
    plug_env.layer_idx = 0;
    do {
@@ -66,11 +68,15 @@ MERROR_RETVAL perpix_read_file(
       memcpy( &(plug_env.file_in), file_in, sizeof( mfile_t ) );
 
       /* Call the plugin to fill out the header. */
+#ifdef MAUG_OS_DOS_REAL
+      retval = bmp_read( &plug_env );
+#else
       memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
       maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "%s_read",
          plug_ext );
       retval = mplug_call(
          mod_exe, plugin_call_buf, &plug_env, sizeof( plug_env ) );
+#endif /* MAUG_OS_DOS_REAL */
       if( MERROR_OK != retval ) {
          error_printf( "%s plugin returned error: %u", plug_ext, retval );
          goto cleanup;
@@ -92,11 +98,15 @@ MERROR_RETVAL perpix_read_file(
       plug_env.test_grid = NULL;
 
       /* Read palette and pixels. */
+#ifdef MAUG_OS_DOS_REAL
+      retval = bmp_read( &plug_env );
+#else
       memset( plugin_call_buf, '\0', RETROFLAT_PATH_MAX + 1 );
       maug_snprintf( plugin_call_buf, RETROFLAT_PATH_MAX, "%s_read",
          plug_ext );
       retval = mplug_call(
          mod_exe, plugin_call_buf, &plug_env, sizeof( plug_env ) );
+#endif /* MAUG_OS_DOS_REAL */
       if( MERROR_OK != retval ) {
          error_printf( "%s plugin returned error: %u", plug_ext, retval );
          goto cleanup;
@@ -113,9 +123,11 @@ MERROR_RETVAL perpix_read_file(
 
 cleanup:
 
+#ifndef MAUG_OS_DOS_REAL
    if( NULL != mod_exe ) {
       mplug_free( mod_exe );
    }
+#endif /* !MAUG_OS_DOS_REAL */
 
    return retval;
 }
