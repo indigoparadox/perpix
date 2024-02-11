@@ -1,6 +1,8 @@
 
+#ifdef PERPIX_PLUGIN
 #define MFMT_C
 #define MFILE_C
+#endif /* PERPIX_PLUGIN */
 #include <perpix.h>
 
 #define BMP_HEADER_SZ 40
