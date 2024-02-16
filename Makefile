@@ -14,7 +14,7 @@ include maug/Makefile.inc
 # Target-specific options.
 .PHONY: clean
 
-all: perpix.ale perpix.sdl perpixd.exe perpixw.exe perpixnt.exe perpix.html
+all: perpix.ale perpix.sdl perpixd.exe perpixw.exe perpixnt.exe perpix.html perpix_bmp.so perpix_ico.so
 
 # Unix (Allegro)
 
