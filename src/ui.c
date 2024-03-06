@@ -28,13 +28,15 @@ MERROR_RETVAL ui_handle_input_queue( struct PERPIX_DATA* data ) {
          if( UI_GRID_X < input_evt.mouse_x ) {
             ui_click_px( data, grid, input_evt.mouse_x, input_evt.mouse_y );
          } else if(
-            UI_GRID_Y < input_evt.mouse_y &&
-            UI_GRID_Y + ui_palette_height( grid ) > input_evt.mouse_y
+            UI_GRID_Y < (unsigned int)(input_evt.mouse_y) &&
+            UI_GRID_Y + ui_palette_height( grid ) > 
+               (unsigned int)(input_evt.mouse_y)
          ) {
             ui_click_palette(
                data, grid, input_evt.mouse_x, input_evt.mouse_y );
          } else if(
-            UI_GRID_Y + ui_palette_height( grid ) < input_evt.mouse_y
+            UI_GRID_Y + ui_palette_height( grid ) <
+               (unsigned int)(input_evt.mouse_y)
          ) {
             ui_click_layer_icons(
                data, grid_pack, input_evt.mouse_x, input_evt.mouse_y );
@@ -127,9 +129,9 @@ void ui_draw_layer_icons(
    struct PERPIX_DATA* data, struct PERPIX_GRID_PACK* grid_pack
 ) {
    uint32_t grid_y_iter = 0,
-      px_x = 0,
-      px_y = 0,
       layer_idx = 0;
+   int32_t px_x = 0,
+      px_y = 0;
    uint8_t* p_px = NULL;
    uint8_t grid_px = 0;
    struct PERPIX_GRID* grid = NULL;
@@ -205,7 +207,12 @@ void ui_click_palette(
    g_y = ui_screen_to_palette_y( mouse_y );
 
    /* Translate palette X/Y into color index. */
-   if( 0 <= g_x && 2 > g_x && 0 <= g_y && grid->palette_ncolors / 2 > g_y ) { 
+   if(
+      0 <= g_x &&
+      2 > g_x &&
+      0 <= g_y &&
+      grid->palette_ncolors / 2 > (unsigned int)g_y
+   ) { 
       data->fg_idx = g_y;
       if( 0 < g_x ) {
          /* In right-hand column, so add left-hand column count. */

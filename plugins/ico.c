@@ -58,7 +58,7 @@ MPLUG_EXPORT MERROR_RETVAL ico_read_entry(
    /* plug_env->buf = &(plug_env->buf[bmp_offset]);
    plug_env->buf_sz = bmp_sz; */
    plug_env->file_offset += bmp_offset;
-   plug_env->file_sz -= bmp_sz;
+   /* plug_env->file_sz -= bmp_sz; */
 
 cleanup:
    return retval;
