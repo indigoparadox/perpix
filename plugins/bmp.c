@@ -352,6 +352,12 @@ cleanup:
 }
 #endif
 
+MPLUG_EXPORT MERROR_RETVAL bmp_write_px( struct PERPIX_PLUG_ENV* plug_env ) {
+   MERROR_RETVAL retval = MERROR_OK;
+
+   return retval;
+}
+
 MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    struct PERPIX_PLUG_ENV* plug_env
 ) {
