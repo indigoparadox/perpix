@@ -547,10 +547,12 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
    memcpy( &hdr_env, plug_env, sizeof( struct PERPIX_PLUG_ENV ) );
 
    /* Read the bitmap file header. */
-   mfile_cread_at( &(plug_env->file_in), &(bm[0]),
-      plug_env->file_offset + 0 );
-   mfile_cread_at( &(plug_env->file_in), &(bm[1]),
-      plug_env->file_offset + 1 );
+   retval = plug_env->file_in.seek(
+      &(plug_env->file_in), plug_env->file_offset + 0 );
+   maug_cleanup_if_not_ok();
+   retval = plug_env->file_in.read_int(
+      &(plug_env->file_in), (uint8_t*)&(bm[0]), 2, MFILE_READ_FLAG_LSBF );
+   maug_cleanup_if_not_ok();
    if( 0x42 != bm[0] || 0x4d != bm[1] ) {
       error_printf(
          "invalid magic number: 0x%02x 0x%02x (looking for 0x%02x 0x%02x)",
@@ -559,8 +561,13 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
       goto cleanup;
    }
 
-   mfile_u32read_lsbf_at( &(plug_env->file_in), &(plug_env->file_sz),
-      plug_env->file_offset + 2 );
+   retval = plug_env->file_in.seek(
+      &(plug_env->file_in), plug_env->file_offset + 2 );
+   maug_cleanup_if_not_ok();
+   retval = plug_env->file_in.read_int(
+      &(plug_env->file_in),
+      (uint8_t*)&(plug_env->file_sz), 4, MFILE_READ_FLAG_LSBF );
+   maug_cleanup_if_not_ok();
    if( plug_env->file_sz != mfile_get_sz( &(plug_env->file_in) ) ) {
       error_printf(
          "bitmap size field " UPRINTF_U32_FMT
@@ -572,8 +579,13 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
    debug_printf( 1, "buffer size " UPRINTF_U32_FMT ", as expected...",
       plug_env->file_sz );
 
-   mfile_u32read_lsbf_at( &(plug_env->file_in), &bmp_data_offset,
-      plug_env->file_offset + 10 );
+   retval = plug_env->file_in.seek(
+      &(plug_env->file_in), plug_env->file_offset + 10 );
+   maug_cleanup_if_not_ok();
+   retval = plug_env->file_in.read_int(
+      &(plug_env->file_in),
+      (uint8_t*)&bmp_data_offset, 4, MFILE_READ_FLAG_LSBF );
+
    debug_printf( 2, "bitmap data starts at %u bytes", bmp_data_offset );
 
    hdr_env.file_offset += 14; /* BMP -file- header size. */

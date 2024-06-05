@@ -23,15 +23,21 @@ MPLUG_EXPORT MERROR_RETVAL ico_read_entry(
    uint32_t bmp_sz = 0;
    uint16_t bmp_bpp = 0;
 
-   /* bmp_offset = perpix_read_lsbf_32( plug_env->buf,
-      icoentry_offset + ICOENTRY_OFFSET_BMP_OFFSET );
-   bmp_sz = perpix_read_lsbf_32( plug_env->buf,
-      icoentry_offset + ICOENTRY_OFFSET_BMP_SZ ); */
-   mfile_u32read_lsbf_at( &(plug_env->file_in), &bmp_offset,
-      plug_env->file_offset + icoentry_offset + 
-         ICOENTRY_OFFSET_BMP_OFFSET );
-   mfile_u32read_lsbf_at( &(plug_env->file_in), &bmp_sz,
+   /* Get the size and offset of the pixel data for this icon entry. */
+   retval = plug_env->file_in.seek( &(plug_env->file_in),
+      plug_env->file_offset + icoentry_offset + ICOENTRY_OFFSET_BMP_OFFSET );
+   maug_cleanup_if_not_ok();
+   retval = plug_env->file_in.read_int(
+      &(plug_env->file_in), (uint8_t*)&bmp_offset, 4, MFILE_READ_FLAG_LSBF );
+   maug_cleanup_if_not_ok();
+
+   retval = plug_env->file_in.seek( &(plug_env->file_in),
       plug_env->file_offset + icoentry_offset + ICOENTRY_OFFSET_BMP_SZ );
+   maug_cleanup_if_not_ok();
+   retval = plug_env->file_in.read_int(
+      &(plug_env->file_in), (uint8_t*)&bmp_sz, 4, MFILE_READ_FLAG_LSBF );
+   maug_cleanup_if_not_ok();
+
    if( bmp_offset + bmp_sz > plug_env->file_sz ) {
       error_printf(
          "bitmap data offset is beyond file ending! (" UPRINTF_U32_FMT
@@ -41,10 +47,14 @@ MPLUG_EXPORT MERROR_RETVAL ico_read_entry(
       goto cleanup;
    }
 
-   /* bmp_bpp = perpix_read_lsbf_16( plug_env->buf,
-      icoentry_offset + ICOENTRY_OFFSET_BPP ); */
-   mfile_u16read_lsbf_at( &(plug_env->file_in), &bmp_bpp,
+   /* Get the pixel color depth for this icon entry. */
+   retval = plug_env->file_in.seek( &(plug_env->file_in),
       plug_env->file_offset + icoentry_offset + ICOENTRY_OFFSET_BPP );
+   maug_cleanup_if_not_ok();
+   retval = plug_env->file_in.read_int(
+      &(plug_env->file_in), (uint8_t*)&bmp_bpp, 2, MFILE_READ_FLAG_LSBF );
+   maug_cleanup_if_not_ok();
+
    if( 8 < bmp_bpp ) {
       error_printf( "bitmap bpp is too high: %u", bmp_bpp );
       retval = MERROR_OVERFLOW;
@@ -55,10 +65,7 @@ MPLUG_EXPORT MERROR_RETVAL ico_read_entry(
       "bitmap data is located at: %u bytes, %u bytes long",
       bmp_offset, bmp_sz );
 
-   /* plug_env->buf = &(plug_env->buf[bmp_offset]);
-   plug_env->buf_sz = bmp_sz; */
    plug_env->file_offset += bmp_offset;
-   /* plug_env->file_sz -= bmp_sz; */
 
 cleanup:
    return retval;
@@ -114,16 +121,29 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
    debug_printf( 3, "started reading at offset " UPRINTF_U32_FMT "...",
       plug_env->file_offset );
 
-   mfile_u16read_lsbf_at( &(plug_env->file_in), &ico_field_res,
-      plug_env->file_offset );
+   /* Compare reserved field to determine if icon is valid. */
+   retval = plug_env->file_in.seek(
+      &(plug_env->file_in), plug_env->file_offset );
+   maug_cleanup_if_not_ok();
+   retval = plug_env->file_in.read_int(
+      &(plug_env->file_in), (uint8_t*)&ico_field_res, 2, MFILE_READ_FLAG_LSBF );
+   maug_cleanup_if_not_ok();
+
    if( 0 != ico_field_res ) {
       error_printf( "invalid: field reserved: %u", ico_field_res );
       retval = MERROR_FILE;
       goto cleanup;
    }
 
-   mfile_u16read_lsbf_at( &(plug_env->file_in), &ico_field_type,
-      plug_env->file_offset + 2 );
+   /* Compare icon type field to determine if icon is valid. */
+   retval = plug_env->file_in.seek(
+      &(plug_env->file_in), plug_env->file_offset + 2 );
+   maug_cleanup_if_not_ok();
+   retval = plug_env->file_in.read_int(
+      &(plug_env->file_in),
+      (uint8_t*)&ico_field_type, 2, MFILE_READ_FLAG_LSBF );
+   maug_cleanup_if_not_ok();
+
    if( 1 != ico_field_type ) {
       error_printf( "invalid: field type: %u", ico_field_type );
       retval = MERROR_FILE;
@@ -131,8 +151,14 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
    }
 
    /* Figure out the number of layers remaining. */
-   mfile_u16read_lsbf_at( &(plug_env->file_in), &ico_field_num_imgs,
-      plug_env->file_offset + 4 );
+   retval = plug_env->file_in.seek(
+      &(plug_env->file_in), plug_env->file_offset + 4 );
+   maug_cleanup_if_not_ok();
+   retval = plug_env->file_in.read_int(
+      &(plug_env->file_in),
+      (uint8_t*)&ico_field_num_imgs, 2, MFILE_READ_FLAG_LSBF );
+   maug_cleanup_if_not_ok();
+
    debug_printf( 2, "found %u icons in file...", ico_field_num_imgs );
    if( ico_field_num_imgs > plug_env->layer_idx + 1 ) {
       debug_printf( 2, "processing layer: %u, more to follow...",
