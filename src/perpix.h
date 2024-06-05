@@ -5,6 +5,7 @@
 #include <maug.h>
 #ifndef PERPIX_PLUGIN
 #  include <retroflt.h>
+#  include <retrofnt.h>
 #  include <retrogui.h>
 #endif /* !PERPIX_PLUGIN F*/
 #include <mfile.h>
