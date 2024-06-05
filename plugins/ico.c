@@ -13,6 +13,8 @@
 #define ICOENTRY_OFFSET_BMP_SZ 8
 #define ICOENTRY_OFFSET_BMP_OFFSET 12
 
+/* TODO: Integrate entry parsing into mfmt so other things can use it. */
+
 MPLUG_EXPORT MERROR_RETVAL ico_read_entry(
    struct PERPIX_PLUG_ENV* plug_env
 ) {
