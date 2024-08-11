@@ -34,6 +34,8 @@ $(eval $(call TGTDOSALE,perpix))
 
 $(eval $(call TGTDOSBIOS,perpix))
 
+$(eval $(call TGTDOSGAL,perpix))
+
 # WinNT
 
 $(eval $(call TGTWINNT,perpix))

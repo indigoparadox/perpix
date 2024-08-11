@@ -220,12 +220,18 @@ cleanup:
    }
 }
 
-int perpix_cli_o( const char* arg, struct RETROFLAT_ARGS* args ) {
-   if( 0 != strncmp( MAUG_CLI_SIGIL "o", arg, MAUG_CLI_SIGIL_SZ + 4 ) ) {
+#ifndef MAUG_NO_CLI
+
+int perpix_cli_o(
+   const char* arg, ssize_t arg_c, struct RETROFLAT_ARGS* args
+) {
+   if( 2 == arg_c ) {
       strncpy( g_file_to_open, arg, RETROFLAT_PATH_MAX );
    }
    return RETROFLAT_OK;
 }
+
+#endif /* !MAUG_NO_CLI */
 
 int main( int argc, char** argv ) {
    int retval = 0;
@@ -248,7 +254,7 @@ int main( int argc, char** argv ) {
 
    maug_add_arg( MAUG_CLI_SIGIL "o", MAUG_CLI_SIGIL_SZ + 2,
       "Open the given image file", 0,
-      (maug_cli_cb)perpix_cli_o, NULL, &args );
+      (maug_cli_cb)perpix_cli_o, &args );
    
    retval = retroflat_init( argc, argv, &args );
    if( RETROFLAT_OK != retval ) {
