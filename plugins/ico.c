@@ -42,8 +42,8 @@ MPLUG_EXPORT MERROR_RETVAL ico_read_entry(
 
    if( bmp_offset + bmp_sz > plug_env->file_sz ) {
       error_printf(
-         "bitmap data offset is beyond file ending! (" UPRINTF_U32_FMT
-         " bytes at " UPRINTF_U32_FMT ", beyond " UPRINTF_U32_FMT " bytes)",
+         "bitmap data offset is beyond file ending! (" U32_FMT
+         " bytes at " U32_FMT ", beyond " U32_FMT " bytes)",
          bmp_sz, bmp_offset, plug_env->file_sz );
       retval = MERROR_OVERFLOW;
       goto cleanup;
@@ -120,7 +120,7 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
       ico_field_num_imgs = 0;
    struct PERPIX_GRID* p_grid = NULL;
 
-   debug_printf( 3, "started reading at offset " UPRINTF_U32_FMT "...",
+   debug_printf( 3, "started reading at offset " U32_FMT "...",
       plug_env->file_offset );
 
    /* Compare reserved field to determine if icon is valid. */
@@ -198,7 +198,7 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
 
    /* This isn't the test pass, so read the image. */
    p_grid = grid_get_layer_p( bmp_env.grid_pack, bmp_env.layer_idx );
-   debug_printf( 2, "reading layer " UPRINTF_U32_FMT " palette data...",
+   debug_printf( 2, "reading layer " U32_FMT " palette data...",
       bmp_env.layer_idx );
    /* bmp_env.buf = &(bmp_env.buf[40]); */
    bmp_env.file_offset += 40;
@@ -213,7 +213,7 @@ MPLUG_EXPORT MERROR_RETVAL ico_read( struct PERPIX_PLUG_ENV* plug_env ) {
    /* bmp_env.buf = &(bmp_env.buf[p_grid->palette_ncolors * 4]); */
    /* TODO: Figure out why ICO parser messes up size. */
    bmp_env.file_offset += p_grid->palette_ncolors * 4;
-   debug_printf( 2, "reading layer " UPRINTF_U32_FMT " pixel data...",
+   debug_printf( 2, "reading layer " U32_FMT " pixel data...",
       bmp_env.layer_idx );
    retval = mplug_call(
       mod_exe, "bmp_read_px", &bmp_env, sizeof( bmp_env ) );

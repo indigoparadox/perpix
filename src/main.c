@@ -182,7 +182,7 @@ void perpix_loop( struct PERPIX_DATA* data ) {
    maug_cleanup_if_null_alloc( struct PERPIX_GRID_PACK*, grid_pack );
 
    if( 0 < data->redraws ) {
-      debug_printf( 2, UPRINTF_S32_FMT " redraws...", data->redraws );
+      debug_printf( 2, S32_FMT " redraws...", data->redraws );
 
       retroflat_rect(
          NULL, RETROFLAT_COLOR_BLACK, 0, 0,

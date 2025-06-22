@@ -89,8 +89,7 @@ void ui_draw_grid( struct PERPIX_GRID* grid ) {
 
    p_px = grid_px( grid );
 
-   debug_printf( 1, "redrawing grid: " UPRINTF_U32_FMT "x" UPRINTF_U32_FMT,
-      grid->w, grid->h );
+   debug_printf( 1, "redrawing grid: " U32_FMT "x" U32_FMT, grid->w, grid->h );
    
    for( y_iter = 0 ; grid->h > y_iter ; y_iter++ ) {
       for( x_iter = 0 ; grid->w > x_iter ; x_iter++ ) {

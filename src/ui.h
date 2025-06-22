@@ -30,7 +30,7 @@
    if( !p_data->redraws ) { \
       p_data->redraws += 2; \
       debug_printf( \
-         1, "incremented redraws to " UPRINTF_S32_FMT, p_data->redraws ); \
+         1, "incremented redraws to " S32_FMT, p_data->redraws ); \
    }
 
 MERROR_RETVAL ui_handle_input_queue( struct PERPIX_DATA* data );

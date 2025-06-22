@@ -338,7 +338,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_px_sz( struct PERPIX_PLUG_ENV* plug_env ) {
       &(plug_env->grid_pack->layers[plug_env->layer_idx]);
 
    if( plug_env->layer_idx >= plug_env->grid_pack->count ) {
-      error_printf( "invalid grid pack layer selected: " UPRINTF_U32_FMT,
+      error_printf( "invalid grid pack layer selected: " U32_FMT,
          plug_env->layer_idx );
       retval = MERROR_OVERFLOW;
       goto cleanup;
@@ -373,7 +373,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
    } else {
       /* Make sure our desired layer exists! */
       if( plug_env->layer_idx >= plug_env->grid_pack->count ) {
-         error_printf( "invalid grid pack layer selected: " UPRINTF_U32_FMT,
+         error_printf( "invalid grid pack layer selected: " U32_FMT,
             plug_env->layer_idx );
          retval = MERROR_OVERFLOW;
          goto cleanup;
@@ -407,7 +407,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_info_header(
 
    if( 0 > header_bmp_info.height ) {
       /* Note that the bitmap is upside down! */
-      debug_printf( 2, "bitmap is upside down: " UPRINTF_S32_FMT,
+      debug_printf( 2, "bitmap is upside down: " S32_FMT,
          header_bmp_info.height );
       plug_env->flags |= BMP_OPTS_FLAG_UPSIDE_DOWN;
       header_bmp_info.height *= -1;
@@ -443,13 +443,13 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_palette(
    struct MFMT_STRUCT_BMPINFO header_bmp_info;
 
    if( plug_env->layer_idx >= plug_env->grid_pack->count ) {
-      error_printf( "invalid grid pack layer selected: " UPRINTF_U32_FMT,
+      error_printf( "invalid grid pack layer selected: " U32_FMT,
          plug_env->layer_idx );
       retval = MERROR_OVERFLOW;
       goto cleanup;
    }
 
-   debug_printf( 2, "setting up palette for layer: " UPRINTF_U32_FMT,
+   debug_printf( 2, "setting up palette for layer: " U32_FMT,
       plug_env->layer_idx );
 
    grid = grid_get_layer_p( plug_env->grid_pack, plug_env->layer_idx );
@@ -478,7 +478,7 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read_px( struct PERPIX_PLUG_ENV* plug_env ) {
    struct MFMT_STRUCT_BMPINFO header_bmp_info;
 
    if( plug_env->layer_idx >= plug_env->grid_pack->count ) {
-      error_printf( "invalid grid pack layer selected: " UPRINTF_U32_FMT,
+      error_printf( "invalid grid pack layer selected: " U32_FMT,
          plug_env->layer_idx );
       retval = MERROR_OVERFLOW;
       goto cleanup;
@@ -536,12 +536,12 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
       )
    ) {
       error_printf( "don't know how to write grid version: "
-         UPRINTF_U32_FMT, plug_env->grid_pack->version );
+         U32_FMT, plug_env->grid_pack->version );
       retval = MERROR_FILE;
       goto cleanup;
    }
 
-   debug_printf( 3, "started reading at file offset " UPRINTF_U32_FMT "...",
+   debug_printf( 3, "started reading at file offset " U32_FMT "...",
       plug_env->file_offset );
 
    memcpy( &hdr_env, plug_env, sizeof( struct PERPIX_PLUG_ENV ) );
@@ -570,13 +570,13 @@ MPLUG_EXPORT MERROR_RETVAL bmp_read( struct PERPIX_PLUG_ENV* plug_env ) {
    maug_cleanup_if_not_ok();
    if( plug_env->file_sz != mfile_get_sz( &(plug_env->file_in) ) ) {
       error_printf(
-         "bitmap size field " UPRINTF_U32_FMT
+         "bitmap size field " U32_FMT
          " does not match buffer size: " SIZE_T_FMT,
          plug_env->file_sz, mfile_get_sz( &(plug_env->file_in) ) );
       retval = MERROR_FILE;
       goto cleanup;
    }
-   debug_printf( 1, "buffer size " UPRINTF_U32_FMT ", as expected...",
+   debug_printf( 1, "buffer size " U32_FMT ", as expected...",
       plug_env->file_sz );
 
    retval = plug_env->file_in.seek(
